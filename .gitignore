@@ -1,0 +1,19 @@
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Editor and operating-system files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Common generated files
+node_modules/
+dist/
+build/
+.venv/
+__pycache__/
+*.py[cod]
+*.log
