@@ -24,6 +24,12 @@ async function setup() {
 }
 
 describe("ACP runner", () => {
+  it("rejects a malformed ACP frame without hanging", async () => {
+    process.env.FAKE_ACP_MODE = "malformed";
+    const { runner, workspace } = await setup();
+    await expect(runner.run("22222222-3333-4333-8333-333333333333", { task: "test", jobType: "analyze", workspace })).rejects.toThrow();
+  });
+
   it("streams result and allows ordinary execute tool", async () => {
     process.env.FAKE_ACP_MODE = "execute";
     const { runner, workspace } = await setup();

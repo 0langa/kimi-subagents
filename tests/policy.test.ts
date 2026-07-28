@@ -29,6 +29,22 @@ describe("permission policy", () => {
     expect(decideTool("execute", { toolCallId: "1", kind: "edit", title: "Edit", rawInput: { path: "C:/outside/file.txt" } }, [root], false)).toMatchObject({ allow: false, reason: "Workspace escape blocked" });
   });
 
+  it("blocks unverifiable relative mutation paths", () => {
+    expect(decideTool("execute", { toolCallId: "1", kind: "edit", title: "Edit", rawInput: { path: "fixture.txt" } }, [root], false))
+      .toMatchObject({ allow: false, reason: "Mutating file operations require absolute paths inside granted roots" });
+  });
+
+  it("blocks shell writes outside roots and unverifiable relative shell writes", () => {
+    expect(decideTool("execute", {
+      toolCallId: "1", kind: "execute", title: "Set content",
+      rawInput: { command: "Set-Content -LiteralPath 'C:\\\\outside\\\\file.txt' -Value changed" }
+    }, [root], false)).toMatchObject({ allow: false, reason: "Workspace escape blocked" });
+    expect(decideTool("execute", {
+      toolCallId: "2", kind: "execute", title: "Set content",
+      rawInput: { command: "Set-Content -LiteralPath .\\file.txt -Value changed" }
+    }, [root], false)).toMatchObject({ allow: false, reason: "Shell file writes require an absolute path inside granted roots" });
+  });
+
   it("allows local commits only when explicitly delegated", () => {
     const call = { toolCallId: "1", kind: "execute" as const, title: "git commit -m test", rawInput: { command: "git commit -m test" } };
     expect(decideTool("execute", call, [root], false).allow).toBe(false);

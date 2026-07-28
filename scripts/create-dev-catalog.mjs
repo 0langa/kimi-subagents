@@ -31,7 +31,7 @@ const claude = {
     source,
     displayName: "Kimi Subagents",
     description: "Guarded Kimi Code ACP delegation for Codex and Claude Code.",
-    version: "0.1.0",
+    version: "0.1.1",
     repository: "https://github.com/0langa/kimi-subagents"
   }]
 };

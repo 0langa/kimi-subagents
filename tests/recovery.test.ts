@@ -5,7 +5,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { runFile } from "../src/process.js";
-import { RecoveryManager } from "../src/recovery.js";
+import { assertCheckpointLimits, RecoveryManager } from "../src/recovery.js";
 
 const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
@@ -23,6 +23,11 @@ async function gitFixture(): Promise<string> {
 }
 
 describe("recovery checkpoints", () => {
+  it("allows exactly 100,000 files and refuses the next file", () => {
+    expect(() => assertCheckpointLimits(100_000, 0)).not.toThrow();
+    expect(() => assertCheckpointLimits(100_001, 0)).toThrow("100,000 files");
+  });
+
   it("restores selected tracked paths only after exact confirmation", async () => {
     const workspace = await gitFixture();
     const storage = await mkdtemp(path.join(os.tmpdir(), "kimi-recovery-store-"));

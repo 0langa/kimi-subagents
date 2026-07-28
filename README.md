@@ -4,13 +4,13 @@ Windows-first Codex and Claude Code plugin that delegates suitable work to insta
 
 ## Status
 
-v0.1 development build. Production `0langas-plugins` marketplace is intentionally untouched. Distribution uses local `kimi-subagents-dev` catalog pinned to exact pushed Git SHA.
+v0.1.1 development build. Production `0langas-plugins` marketplace is intentionally untouched. Distribution uses local `kimi-subagents-dev` catalog pinned to exact pushed Git SHA.
 
 ## Requirements
 
 - Windows 11 tested
 - Node.js 20 or newer
-- authenticated Kimi Code 0.29.2 or newer on `PATH`
+- Kimi Code 0.29.2 or newer on `PATH`, authenticated through managed Kimi OAuth
 - Codex or Claude Code with plugin support
 
 No Python, WSL, Docker, or runtime package install. Repository commits bundled `dist/server.mjs`; installed runtime starts with `node`.
@@ -77,6 +77,8 @@ Restart host after installation. Marketplace installs are cached; regenerate cat
 ## Safety
 
 Kimi can broadly edit and run local development commands inside granted roots. Broker blocks known permanent deletion, destructive Git, GitHub/remote mutation, credential export, workspace escape, and undelegated commits. Execute jobs checkpoint before launch and reject dirty Git trees without explicit override.
+
+Each ACP process receives an isolated temporary `KIMI_CODE_HOME`: managed OAuth credentials are linked read-only-by-convention, safe provider/model metadata is copied without API keys, and global Kimi MCP servers, plugins, hooks, skills, sessions, and logs are not inherited. Temporary Kimi session/log state is removed when job ends. Enabled project-local `.kimi-code/mcp.json` servers cause delegation refusal because MCP parameters bypass ACP tool approval. Non-empty config API keys are unsupported in v0.1 isolation.
 
 This is not a formal sandbox. Same-user Windows commands may evade pattern controls through novel or obfuscated execution. Main Codex/Claude agent must inspect diff/commit range, rerun checks, and label output accepted, repaired, or rejected. See [SECURITY.md](SECURITY.md) and [architecture](docs/architecture.md).
 

@@ -9,6 +9,17 @@
       "sources": ["https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp.html"]
     },
     {
+      "provider": "kimi-code",
+      "topic": "config-isolation",
+      "path": "notes/kimi-code-config-isolation.md",
+      "stability": "likely-changing",
+      "sources": [
+        "https://www.kimi.com/code/docs/en/kimi-code-cli/configuration/config-files",
+        "https://www.kimi.com/code/docs/en/kimi-code-cli/customization/mcp.html",
+        "https://moonshotai.github.io/kimi-code/en/configuration/env-vars.html"
+      ]
+    },
+    {
       "provider": "openai",
       "topic": "codex-plugins",
       "path": "notes/codex-plugins.md",

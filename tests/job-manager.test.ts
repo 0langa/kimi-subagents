@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -41,6 +41,59 @@ const success = (id: string): RunResult => ({
 });
 
 describe("job manager", () => {
+  it("retries one transient ACP failure and then completes", async () => {
+    const { workspace, manager } = await fixture();
+    let calls = 0;
+    manager.runner.run = async (id) => {
+      calls += 1;
+      if (calls === 1) throw new Error("ECONNRESET");
+      return success(id);
+    };
+    const started = await manager.start({ task: "retry", jobType: "analyze", workspace });
+    const finished = await waitFor(manager, started.id, (candidate) => candidate.status === "completed");
+    expect(calls).toBe(2);
+    expect(finished.retries).toBe(1);
+  });
+
+  it("marks stale running jobs failed during initialization", async () => {
+    const workspace = await mkdtemp(path.join(os.tmpdir(), "kimi-stale-"));
+    const storage = await mkdtemp(path.join(os.tmpdir(), "kimi-stale-store-"));
+    roots.push(workspace, storage);
+    const store = new RecordStore(storage);
+    const now = new Date().toISOString();
+    const id = "99999999-9999-4999-8999-999999999999";
+    await store.save({
+      id,
+      ownerPid: 2_147_483_647,
+      status: "running",
+      jobType: "execute",
+      workspace,
+      additionalRoots: [],
+      taskSummary: "stale",
+      allowDirty: false,
+      allowCommit: false,
+      createdAt: now,
+      updatedAt: now,
+      retries: 0,
+      blockedActions: [],
+      changedFiles: [],
+      recoveryAvailable: false,
+      acceptedRisk: "allow-unless-blocked"
+    });
+    const manager = new JobManager(store);
+    await manager.initialize();
+    const recovered = await manager.get(id);
+    expect(recovered.status).toBe("failed");
+    expect(recovered.error).toContain("Host process stopped");
+  });
+
+  it("refuses enabled project-local Kimi MCP servers", async () => {
+    const { workspace, manager } = await fixture();
+    await mkdir(path.join(workspace, ".kimi-code"), { recursive: true });
+    await writeFile(path.join(workspace, ".kimi-code", "mcp.json"), JSON.stringify({ mcpServers: { unsafe: { command: "unsafe" } } }));
+    await expect(manager.start({ task: "test", jobType: "analyze", workspace })).rejects.toThrow("Project-local Kimi MCP servers are blocked");
+  });
+
   it("refuses dirty execute trees without explicit override", async () => {
     const { workspace, manager } = await fixture();
     await runFile("git", ["init", "-q", workspace]);
@@ -54,6 +107,43 @@ describe("job manager", () => {
     expect(finished.error).toContain("dirty");
     expect(finished.recoveryAvailable).toBe(false);
   }, 15_000);
+
+  it("separates unchanged pre-existing dirty paths from job output", async () => {
+    const { workspace, manager } = await fixture();
+    await runFile("git", ["init", "-q", workspace]);
+    await runFile("git", ["-C", workspace, "config", "user.email", "test@example.invalid"]);
+    await runFile("git", ["-C", workspace, "config", "user.name", "Kimi Subagents Test"]);
+    await runFile("git", ["-C", workspace, "add", "fixture.txt"]);
+    await runFile("git", ["-C", workspace, "commit", "-q", "-m", "fixture"]);
+    await writeFile(path.join(workspace, "fixture.txt"), "user-dirty\n");
+    manager.runner.run = async (id) => {
+      await writeFile(path.join(workspace, "override.txt"), "created-by-kimi");
+      return success(id);
+    };
+    const record = await manager.start({ task: "edit", jobType: "execute", workspace, allowDirty: true });
+    const finished = await waitFor(manager, record.id, (candidate) => candidate.status === "completed");
+    expect(finished.changedFiles).toEqual([{ status: "??", path: "override.txt" }]);
+    expect(finished.preExistingChangedFiles).toEqual([{ status: "M", path: "fixture.txt" }]);
+  });
+
+  it("attributes files changed in a delegated local commit", async () => {
+    const { workspace, manager } = await fixture();
+    await runFile("git", ["init", "-q", workspace]);
+    await runFile("git", ["-C", workspace, "config", "user.email", "test@example.invalid"]);
+    await runFile("git", ["-C", workspace, "config", "user.name", "Kimi Subagents Test"]);
+    await runFile("git", ["-C", workspace, "add", "fixture.txt"]);
+    await runFile("git", ["-C", workspace, "commit", "-q", "-m", "fixture"]);
+    manager.runner.run = async (id) => {
+      await writeFile(path.join(workspace, "fixture.txt"), "committed\n");
+      await runFile("git", ["-C", workspace, "add", "fixture.txt"]);
+      await runFile("git", ["-C", workspace, "commit", "-q", "-m", "delegated"]);
+      return success(id);
+    };
+    const record = await manager.start({ task: "commit", jobType: "execute", workspace, allowCommit: true });
+    const finished = await waitFor(manager, record.id, (candidate) => candidate.status === "completed");
+    expect(finished.changedFiles).toEqual([{ status: "M", path: "fixture.txt" }]);
+    expect(finished.resultingCommit).not.toBe(finished.baselineCommit);
+  });
 
   it("allows two jobs but only one execute writer per workspace", async () => {
     const { workspace, manager } = await fixture();
@@ -73,6 +163,33 @@ describe("job manager", () => {
     releaseFirst?.();
     await waitFor(manager, second.id, (record) => record.status === "completed");
     expect(calls).toBe(2);
+  });
+
+  it("runs at most two jobs globally and queues the third", async () => {
+    const { workspace, manager } = await fixture();
+    const secondWorkspace = await mkdtemp(path.join(os.tmpdir(), "kimi-manager-second-"));
+    const thirdWorkspace = await mkdtemp(path.join(os.tmpdir(), "kimi-manager-third-"));
+    roots.push(secondWorkspace, thirdWorkspace);
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    let active = 0;
+    let maximum = 0;
+    manager.runner.run = async (id) => {
+      active += 1;
+      maximum = Math.max(maximum, active);
+      await gate;
+      active -= 1;
+      return success(id);
+    };
+    const first = await manager.start({ task: "one", jobType: "analyze", workspace });
+    const second = await manager.start({ task: "two", jobType: "analyze", workspace: secondWorkspace });
+    const third = await manager.start({ task: "three", jobType: "analyze", workspace: thirdWorkspace });
+    await waitFor(manager, first.id, (record) => record.status === "running");
+    await waitFor(manager, second.id, (record) => record.status === "running");
+    expect((await manager.get(third.id)).status).toBe("queued");
+    expect(maximum).toBe(2);
+    release?.();
+    await waitFor(manager, third.id, (record) => record.status === "completed");
   });
 
   it("persists redacted task metadata", async () => {

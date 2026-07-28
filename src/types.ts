@@ -52,10 +52,12 @@ export interface JobRecord {
   stopReason?: string;
   finalMessage?: string;
   error?: string;
+  diagnostics?: string;
   retries: number;
   usage?: Usage;
   blockedActions: BlockedAction[];
   changedFiles: ChangedFile[];
+  preExistingChangedFiles?: ChangedFile[];
   diffSummary?: string;
   baselineCommit?: string;
   resultingCommit?: string;

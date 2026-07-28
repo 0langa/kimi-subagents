@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { AcpRunner } from "./acp-runner.js";
-import { changedFiles, gitDirty, gitHead, gitOutput, isGitRepository } from "./git.js";
+import { changedFiles, gitDirty, gitHead, gitOutput, isGitRepository, workingTreeSnapshot, type WorkingTreeEntry } from "./git.js";
 import { LockManager, type HeldLocks } from "./locks.js";
+import { IsolatedKimiHome } from "./kimi-home.js";
 import { redact, safeError } from "./redaction.js";
 import { RecoveryManager } from "./recovery.js";
 import { RecordStore } from "./storage.js";
@@ -26,11 +27,12 @@ export class JobManager {
   private readonly inputs = new Map<string, StartJobInput>();
   private readonly active = new Set<string>();
   private pumpTimer?: NodeJS.Timeout;
+  private pumping = false;
 
   constructor(store = new RecordStore()) {
     this.store = store;
     this.recovery = new RecoveryManager(store.recoveryDir);
-    this.runner = new AcpRunner(this.recovery);
+    this.runner = new AcpRunner(this.recovery, "kimi", ["acp"], new IsolatedKimiHome(path.join(store.root, "kimi-homes")));
     this.locks = new LockManager(store.locksDir);
   }
 
@@ -53,14 +55,29 @@ export class JobManager {
     if (!path.isAbsolute(input.workspace)) throw new Error("workspace must be an absolute path");
     const workspace = path.resolve(input.workspace);
     if (!(await stat(workspace)).isDirectory()) throw new Error("workspace must be an existing directory");
+    await this.assertNoProjectMcp(workspace);
     const additionalRoots: string[] = [];
     for (const root of input.additionalRoots ?? []) {
       if (!path.isAbsolute(root)) throw new Error("Every additional root must be absolute");
       const resolved = path.resolve(root);
       if (!(await stat(resolved)).isDirectory()) throw new Error(`Additional root does not exist: ${resolved}`);
+      await this.assertNoProjectMcp(resolved);
       additionalRoots.push(resolved);
     }
     return { ...input, workspace, additionalRoots };
+  }
+
+  private async assertNoProjectMcp(root: string): Promise<void> {
+    const config = path.join(root, ".kimi-code", "mcp.json");
+    try {
+      const parsed = JSON.parse(await readFile(config, "utf8")) as { mcpServers?: Record<string, { enabled?: boolean }> };
+      const enabled = Object.entries(parsed.mcpServers ?? {}).filter(([, value]) => value.enabled !== false).map(([name]) => name);
+      if (enabled.length > 0) throw new Error(`Project-local Kimi MCP servers are blocked for delegated jobs: ${enabled.join(", ")}`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      if (error instanceof SyntaxError) throw new Error("Project-local .kimi-code/mcp.json is malformed; delegated job refused", { cause: error });
+      throw error;
+    }
   }
 
   async preflight(workspace = process.cwd()): Promise<PreflightResult> {
@@ -102,10 +119,14 @@ export class JobManager {
   }
 
   private schedulePump(delay = 250): void {
-    if (this.pumpTimer) return;
+    if (this.pumpTimer || this.pumping) return;
     this.pumpTimer = setTimeout(() => {
       this.pumpTimer = undefined;
-      void this.pump();
+      this.pumping = true;
+      void this.pump().finally(() => {
+        this.pumping = false;
+        if (this.inputs.size > this.active.size) this.schedulePump();
+      });
     }, delay);
     this.pumpTimer.unref();
   }
@@ -136,11 +157,13 @@ export class JobManager {
   private async runOne(jobId: string, input: StartJobInput, held: HeldLocks): Promise<void> {
     let timer: NodeJS.Timeout | undefined;
     let baselineStatus = "";
+    let baselineTree: WorkingTreeEntry[] = [];
     try {
       await this.update(jobId, { status: "preparing", startedAt: new Date().toISOString(), progress: "Preparing workspace" });
       const git = await isGitRepository(input.workspace);
       const baselineCommit = git ? await gitHead(input.workspace) : undefined;
       if (git) baselineStatus = await gitOutput(input.workspace, ["status", "--porcelain=v1", "--untracked-files=all"]);
+      if (git) baselineTree = await workingTreeSnapshot(input.workspace, baselineStatus);
       await this.update(jobId, { baselineCommit });
       if (input.jobType === "execute" && git && await gitDirty(input.workspace) && !input.allowDirty) {
         await this.update(jobId, { status: "blocked", error: "Execute job refused: Git working tree is dirty. Explicit dirty override required.", finishedAt: new Date().toISOString() });
@@ -172,21 +195,24 @@ export class JobManager {
         }
       }
       if (!result) throw new Error("ACP job ended without a result");
-      const diff = await changedFiles(input.workspace, baselineCommit);
+      const diff = await changedFiles(input.workspace, baselineCommit, baselineTree);
       const currentStatus = git ? await gitOutput(input.workspace, ["status", "--porcelain=v1", "--untracked-files=all"]) : "";
       const readOnlyViolation = input.jobType !== "execute" && git && currentStatus !== baselineStatus;
       const latest = await this.store.get(jobId);
       const cancelled = latest?.status === "cancelled" || result.stopReason === "cancelled";
+      const emptyResult = !cancelled && !result.finalMessage.trim();
       await this.update(jobId, {
-        status: cancelled ? "cancelled" : readOnlyViolation ? "failed" : "completed",
+        status: cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
         stopReason: result.stopReason,
         finalMessage: result.finalMessage,
+        diagnostics: result.diagnostics,
         usage: result.usage,
         blockedActions: result.blockedActions,
         changedFiles: diff.files,
+        preExistingChangedFiles: diff.preExistingFiles,
         diffSummary: readOnlyViolation ? `READ-ONLY VIOLATION: ${diff.summary}` : diff.summary,
         resultingCommit: diff.head,
-        error: readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy." : undefined,
+        error: readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy." : emptyResult ? "Kimi ACP returned no final message; result rejected." : undefined,
         finishedAt: new Date().toISOString(),
         progress: cancelled ? "Cancelled" : "Finished"
       });

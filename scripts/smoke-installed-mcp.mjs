@@ -14,7 +14,7 @@ const expand = (value) => value.replaceAll("${CLAUDE_PLUGIN_ROOT}", pluginRoot);
 const command = expand(configured.command);
 const args = configured.args.map(expand);
 const transport = new StdioClientTransport({ command, args, cwd: process.cwd(), stderr: "pipe" });
-const client = new Client({ name: "kimi-subagents-install-smoke", version: "0.1.0" });
+const client = new Client({ name: "kimi-subagents-install-smoke", version: "0.1.1" });
 try {
   await client.connect(transport);
   const listed = await client.listTools();

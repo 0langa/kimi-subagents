@@ -22,6 +22,7 @@ const CREDENTIAL_PATTERNS = [
   /\b(?:echo|write-output)\b.*\$(?:env:)?(?:\w*(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL)\w*)/i
 ];
 const COMMIT_PATTERN = /\bgit\s+commit\b/i;
+const FILE_WRITE_COMMAND_PATTERN = /\b(?:set-content|out-file|new-item|copy-item|move-item|rename-item|touch)\b|\b(?:echo|printf)\b[^\r\n]*>/i;
 
 function stringifyTool(call: ToolCall | ToolCallUpdate): string {
   let raw: string;
@@ -38,18 +39,42 @@ function rootsContain(roots: string[], candidate: string): boolean {
 }
 
 function pathValues(value: unknown, key = ""): string[] {
-  if (typeof value === "string" && /^(?:path|file|cwd|directory|destination|source)$/i.test(key) && path.isAbsolute(value)) return [value];
+  if (typeof value === "string" && /^(?:path|file|cwd|directory|destination|source)$/i.test(key)) return [value];
   if (Array.isArray(value)) return value.flatMap((entry) => pathValues(entry, key));
   if (value && typeof value === "object") return Object.entries(value).flatMap(([childKey, entry]) => pathValues(entry, childKey));
   return [];
 }
 
+function stringValues(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(stringValues);
+  if (value && typeof value === "object") return Object.values(value).flatMap(stringValues);
+  return [];
+}
+
+function commandPaths(call: ToolCall | ToolCallUpdate): string[] {
+  const values = [call.title ?? "", ...stringValues(call.rawInput)];
+  const output: string[] = [];
+  for (const value of values) {
+    for (const match of value.matchAll(/["']([A-Za-z]:[\\/][^"']+)["']/g)) output.push(match[1]!);
+    for (const match of value.matchAll(/(?:^|\s)([A-Za-z]:[\\/][^\s;&|]+)/g)) output.push(match[1]!);
+  }
+  return [...new Set(output)];
+}
+
 export function decideTool(jobType: JobType, call: ToolCall | ToolCallUpdate, roots: string[], allowCommit: boolean): PolicyDecision {
   const kind: ToolKind | null | undefined = call.kind;
   const text = stringifyTool(call);
-  const locations = [...(call.locations ?? []).map((location) => location.path), ...pathValues(call.rawInput)];
+  const shellPaths = commandPaths(call);
+  const locations = [...(call.locations ?? []).map((location) => location.path), ...pathValues(call.rawInput), ...shellPaths];
+  if (["edit", "move", "delete"].includes(kind ?? "other") && (locations.length === 0 || locations.some((candidate) => !path.isAbsolute(candidate)))) {
+    return { allow: false, reason: "Mutating file operations require absolute paths inside granted roots" };
+  }
   if (locations.some((candidate) => path.isAbsolute(candidate) && !rootsContain(roots, candidate))) {
     return { allow: false, reason: "Workspace escape blocked" };
+  }
+  if (kind === "execute" && FILE_WRITE_COMMAND_PATTERN.test(text) && shellPaths.length === 0) {
+    return { allow: false, reason: "Shell file writes require an absolute path inside granted roots" };
   }
   if (kind === "delete" || DELETE_PATTERNS.some((pattern) => pattern.test(text))) {
     return { allow: false, reason: "Permanent deletion or destructive Git blocked" };

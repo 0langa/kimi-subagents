@@ -3229,8 +3229,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path7) {
-      let input = path7;
+    function removeDotSegments(path8) {
+      let input = path8;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3482,8 +3482,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path7, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path7 && path7 !== "/" ? path7 : void 0;
+        const [path8, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path8 && path8 !== "/" ? path8 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -7254,8 +7254,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path7, errorMaps, issueData } = params;
-  const fullPath = [...path7, ...issueData.path || []];
+  const { data, path: path8, errorMaps, issueData } = params;
+  const fullPath = [...path8, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -7370,11 +7370,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path7, key) {
+  constructor(parent, value, path8, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path7;
+    this._path = path8;
     this._key = key;
   }
   get path() {
@@ -11294,10 +11294,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path7) {
-  if (!path7)
+function getElementAtPath(obj, path8) {
+  if (!path8)
     return obj;
-  return path7.reduce((acc, key) => acc?.[key], obj);
+  return path8.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -11706,11 +11706,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path7, issues) {
+function prefixIssues(path8, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path7);
+    iss.path.unshift(path8);
     return iss;
   });
 }
@@ -11857,16 +11857,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path7 = []) => {
+  const processError = (error52, path8 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path7, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path8, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
       } else {
-        const fullpath = [...path7, ...issue2.path];
+        const fullpath = [...path8, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -11893,17 +11893,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result2 = { errors: [] };
-  const processError = (error52, path7 = []) => {
+  const processError = (error52, path8 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path7, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path8, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path7, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path8, ...issue2.path]);
       } else {
-        const fullpath = [...path7, ...issue2.path];
+        const fullpath = [...path8, ...issue2.path];
         if (fullpath.length === 0) {
           result2.errors.push(mapper(issue2));
           continue;
@@ -11935,8 +11935,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path7 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path7) {
+  const path8 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path8) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -23048,11 +23048,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path7) {
-  if (path7.length === 0) {
+function getDotPath(path8) {
+  if (path8.length === 0) {
     return "object root";
   }
-  return path7.reduce((acc, seg, index) => {
+  return path8.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -25077,13 +25077,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path7 = ref.slice(1).split("/").filter(Boolean);
-  if (path7.length === 0) {
+  const path8 = ref.slice(1).split("/").filter(Boolean);
+  if (path8.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path7[0] === defsKey) {
-    const key = path7[1];
+  if (path8[0] === defsKey) {
+    const key = path8[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -30984,11 +30984,12 @@ var StdioServerTransport = class {
 import { pathToFileURL } from "node:url";
 
 // src/job-manager.ts
-import { randomUUID as randomUUID2 } from "node:crypto";
-import { stat as stat3 } from "node:fs/promises";
-import path6 from "node:path";
+import { randomUUID as randomUUID3 } from "node:crypto";
+import { readFile as readFile6, stat as stat4 } from "node:fs/promises";
+import path7 from "node:path";
 
 // src/acp-runner.ts
+import { randomUUID } from "node:crypto";
 import { spawn as spawn2 } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 
@@ -35171,6 +35172,7 @@ var CREDENTIAL_PATTERNS = [
   /\b(?:echo|write-output)\b.*\$(?:env:)?(?:\w*(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL)\w*)/i
 ];
 var COMMIT_PATTERN = /\bgit\s+commit\b/i;
+var FILE_WRITE_COMMAND_PATTERN = /\b(?:set-content|out-file|new-item|copy-item|move-item|rename-item|touch)\b|\b(?:echo|printf)\b[^\r\n]*>/i;
 function stringifyTool(call) {
   let raw;
   try {
@@ -35188,17 +35190,39 @@ function rootsContain(roots, candidate) {
   });
 }
 function pathValues(value, key = "") {
-  if (typeof value === "string" && /^(?:path|file|cwd|directory|destination|source)$/i.test(key) && path.isAbsolute(value)) return [value];
+  if (typeof value === "string" && /^(?:path|file|cwd|directory|destination|source)$/i.test(key)) return [value];
   if (Array.isArray(value)) return value.flatMap((entry) => pathValues(entry, key));
   if (value && typeof value === "object") return Object.entries(value).flatMap(([childKey, entry]) => pathValues(entry, childKey));
   return [];
 }
+function stringValues(value) {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(stringValues);
+  if (value && typeof value === "object") return Object.values(value).flatMap(stringValues);
+  return [];
+}
+function commandPaths(call) {
+  const values = [call.title ?? "", ...stringValues(call.rawInput)];
+  const output = [];
+  for (const value of values) {
+    for (const match of value.matchAll(/["']([A-Za-z]:[\\/][^"']+)["']/g)) output.push(match[1]);
+    for (const match of value.matchAll(/(?:^|\s)([A-Za-z]:[\\/][^\s;&|]+)/g)) output.push(match[1]);
+  }
+  return [...new Set(output)];
+}
 function decideTool(jobType, call, roots, allowCommit) {
   const kind = call.kind;
   const text = stringifyTool(call);
-  const locations = [...(call.locations ?? []).map((location) => location.path), ...pathValues(call.rawInput)];
+  const shellPaths = commandPaths(call);
+  const locations = [...(call.locations ?? []).map((location) => location.path), ...pathValues(call.rawInput), ...shellPaths];
+  if (["edit", "move", "delete"].includes(kind ?? "other") && (locations.length === 0 || locations.some((candidate) => !path.isAbsolute(candidate)))) {
+    return { allow: false, reason: "Mutating file operations require absolute paths inside granted roots" };
+  }
   if (locations.some((candidate) => path.isAbsolute(candidate) && !rootsContain(roots, candidate))) {
     return { allow: false, reason: "Workspace escape blocked" };
+  }
+  if (kind === "execute" && FILE_WRITE_COMMAND_PATTERN.test(text) && shellPaths.length === 0) {
+    return { allow: false, reason: "Shell file writes require an absolute path inside granted roots" };
   }
   if (kind === "delete" || DELETE_PATTERNS.some((pattern) => pattern.test(text))) {
     return { allow: false, reason: "Permanent deletion or destructive Git blocked" };
@@ -35329,16 +35353,17 @@ function promptFor(input) {
   if (input.jobType === "plan") common.push("PLAN JOB: use native ACP plan mode. Do not modify files.");
   if (input.jobType === "execute") {
     common.push("EXECUTE JOB: local edits, tests, builds, installs, and development commands are allowed unless blocked by policy.");
+    common.push(`WORKSPACE ROOT: ${input.workspace}. Use absolute paths for every file mutation. For shell commands, set the working directory explicitly to this root.`);
     common.push(input.allowCommit ? "A local Git commit is explicitly allowed." : "Do not create a Git commit.");
   }
   common.push(`TASK:
 ${input.task}`);
   return common.join("\n\n");
 }
-function spawnAgent(command, args, workspace) {
+function spawnAgent(command, args, workspace, isolatedHome) {
   return spawn2(command, args, {
     cwd: workspace,
-    env: sanitizedChildEnv(),
+    env: sanitizedChildEnv(isolatedHome ? { KIMI_CODE_HOME: isolatedHome } : {}),
     shell: false,
     windowsHide: true,
     detached: process.platform !== "win32",
@@ -35346,14 +35371,16 @@ function spawnAgent(command, args, workspace) {
   });
 }
 var AcpRunner = class {
-  constructor(recovery, command = "kimi", commandArgs = ["acp"]) {
+  constructor(recovery, command = "kimi", commandArgs = ["acp"], isolatedHome) {
     this.recovery = recovery;
     this.command = command;
     this.commandArgs = commandArgs;
+    this.isolatedHome = isolatedHome;
   }
   recovery;
   command;
   commandArgs;
+  isolatedHome;
   active = /* @__PURE__ */ new Map();
   cancelling = /* @__PURE__ */ new Set();
   async preflight(workspace) {
@@ -35374,7 +35401,15 @@ var AcpRunner = class {
     if (!result2.node.supported) errors.push("Node 20 or newer required");
     if (kimiVersion && !result2.kimi.supported) errors.push("Kimi Code 0.29.2 or newer required");
     if (!result2.node.supported || !result2.kimi.supported) return result2;
-    const child = spawnAgent(this.command, this.commandArgs, workspace);
+    const isolationId = `preflight-${randomUUID()}`;
+    let home;
+    try {
+      home = await this.isolatedHome?.prepare(isolationId);
+    } catch (error51) {
+      errors.push(`Safe Kimi runtime isolation unavailable: ${safeError(error51)}`);
+      return result2;
+    }
+    const child = spawnAgent(this.command, this.commandArgs, workspace, home);
     let diagnostics = "";
     child.stderr.on("data", (chunk) => {
       diagnostics = `${diagnostics}${chunk.toString("utf8")}`.slice(-8192);
@@ -35382,7 +35417,7 @@ var AcpRunner = class {
     const client2 = { requestPermission: () => ({ outcome: { outcome: "cancelled" } }), sessionUpdate: () => void 0 };
     const connection = new ClientSideConnection(() => client2, childStream(child));
     try {
-      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.1.0" } });
+      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.1.1" } });
       const session = await connection.newSession({ cwd: workspace, mcpServers: [] });
       result2.kimi.authenticated = true;
       result2.acp = { protocolVersion: initialized.protocolVersion, sessionCreated: Boolean(session.sessionId), capabilities: initialized.agentCapabilities };
@@ -35394,11 +35429,13 @@ var AcpRunner = class {
       child.stdin.end();
       await Promise.race([waitForExit(child).catch(() => null), new Promise((resolve) => setTimeout(() => resolve(null), 1500))]);
       if (child.pid && child.exitCode === null) await terminateProcessTree(child.pid);
+      if (home) await this.isolatedHome?.dispose(isolationId);
     }
     return result2;
   }
   async run(jobId, input, callbacks = {}) {
-    const child = spawnAgent(this.command, this.commandArgs, input.workspace);
+    const home = await this.isolatedHome?.prepare(jobId);
+    const child = spawnAgent(this.command, this.commandArgs, input.workspace, home);
     let diagnostics = "";
     child.stderr.on("data", (chunk) => {
       diagnostics = `${diagnostics}${chunk.toString("utf8")}`.slice(-8192);
@@ -35440,7 +35477,7 @@ var AcpRunner = class {
       const initialized = await connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { plan: {} },
-        clientInfo: { name: "kimi-subagents", version: "0.1.0" }
+        clientInfo: { name: "kimi-subagents", version: "0.1.1" }
       });
       const session = await connection.newSession({ cwd: input.workspace, additionalDirectories: input.additionalRoots ?? [], mcpServers: [] });
       sessionId = session.sessionId;
@@ -35472,6 +35509,7 @@ var AcpRunner = class {
       this.active.delete(jobId);
       this.cancelling.delete(jobId);
       if (child.pid && child.exitCode === null) await terminateProcessTree(child.pid);
+      if (home) await this.isolatedHome?.dispose(jobId);
     }
   }
   async cancel(jobId) {
@@ -35494,7 +35532,26 @@ var AcpRunner = class {
 };
 
 // src/git.ts
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import path2 from "node:path";
+function parseStatus(status) {
+  return status.split(/\r?\n/).filter(Boolean).map((line) => ({
+    status: line.slice(0, 2).trim() || "?",
+    path: line.slice(3).trim().replaceAll("\\", "/")
+  }));
+}
+async function fingerprint(workspace, relative) {
+  try {
+    const content = await readFile(path2.resolve(workspace, relative));
+    return createHash("sha256").update(content).digest("hex");
+  } catch {
+    return "[missing]";
+  }
+}
+async function workingTreeSnapshot(workspace, status) {
+  return Promise.all(parseStatus(status).map(async (file2) => ({ ...file2, fingerprint: await fingerprint(workspace, file2.path) })));
+}
 async function isGitRepository(workspace) {
   try {
     await runFile("git", ["-C", workspace, "rev-parse", "--is-inside-work-tree"]);
@@ -35517,20 +35574,37 @@ async function gitDirty(workspace) {
   if (!await isGitRepository(workspace)) return false;
   return (await gitOutput(workspace, ["status", "--porcelain=v1", "--untracked-files=all"])).length > 0;
 }
-async function changedFiles(workspace, baselineCommit) {
-  if (!await isGitRepository(workspace)) return { files: [], summary: "Non-Git workspace; file attribution unavailable." };
+async function changedFiles(workspace, baselineCommit, baseline = []) {
+  if (!await isGitRepository(workspace)) return { files: [], preExistingFiles: [], summary: "Non-Git workspace; file attribution unavailable." };
   const status = await gitOutput(workspace, ["status", "--porcelain=v1", "--untracked-files=all"]);
-  const files = status.split(/\r?\n/).filter(Boolean).map((line) => ({ status: line.slice(0, 2).trim() || "?", path: line.slice(3).trim() }));
+  const current = await workingTreeSnapshot(workspace, status);
+  const prior = new Map(baseline.map((file2) => [file2.path, file2]));
+  const preExistingFiles = current.filter((file2) => {
+    const before = prior.get(file2.path);
+    return before?.status === file2.status && before.fingerprint === file2.fingerprint;
+  }).map(({ status: fileStatus, path: filePath }) => ({ status: fileStatus, path: filePath }));
+  const preExistingPaths = new Set(preExistingFiles.map((file2) => file2.path));
+  let files = current.filter((file2) => !preExistingPaths.has(file2.path)).map(({ status: fileStatus, path: filePath }) => ({ status: fileStatus, path: filePath }));
   const head = await gitHead(workspace);
-  let summary = files.length === 0 ? "Working tree clean." : `${files.length} working-tree path(s) changed.`;
   if (baselineCommit && head && baselineCommit !== head) {
-    const stat4 = (await gitOutput(workspace, ["diff", "--stat", `${baselineCommit}..${head}`])).trim();
-    summary += ` Commit range ${baselineCommit.slice(0, 8)}..${head.slice(0, 8)}.${stat4 ? ` ${stat4}` : ""}`;
-  } else if (files.length > 0) {
-    const stat4 = (await gitOutput(workspace, ["diff", "--stat"])).trim();
-    if (stat4) summary += ` ${stat4}`;
+    const committed = (await gitOutput(workspace, ["diff", "--name-status", `${baselineCommit}..${head}`])).split(/\r?\n/).filter(Boolean).map((line) => {
+      const [fileStatus = "?", ...parts] = line.split("	");
+      return { status: fileStatus, path: parts.slice(-1)[0]?.replaceAll("\\", "/") ?? "" };
+    }).filter((file2) => file2.path);
+    const merged = new Map(files.map((file2) => [file2.path, file2]));
+    for (const file2 of committed) merged.set(file2.path, file2);
+    files = [...merged.values()];
   }
-  return { files: files.map((file2) => ({ ...file2, path: file2.path.replaceAll("\\", "/") })), summary, head };
+  let summary = files.length === 0 ? "No job-attributed working-tree changes." : `${files.length} job-attributed working-tree path(s) changed.`;
+  if (preExistingFiles.length > 0) summary += ` ${preExistingFiles.length} pre-existing dirty path(s) unchanged.`;
+  if (baselineCommit && head && baselineCommit !== head) {
+    const stat5 = (await gitOutput(workspace, ["diff", "--stat", `${baselineCommit}..${head}`])).trim();
+    summary += ` Commit range ${baselineCommit.slice(0, 8)}..${head.slice(0, 8)}.${stat5 ? ` ${stat5}` : ""}`;
+  } else if (files.length > 0) {
+    const stat5 = (await gitOutput(workspace, ["diff", "--stat"])).trim();
+    if (stat5) summary += ` ${stat5}`;
+  }
+  return { files, preExistingFiles, summary, head };
 }
 function normalizeRelative(workspace, target) {
   const relative = path2.relative(path2.resolve(workspace), path2.resolve(target));
@@ -35540,8 +35614,8 @@ function normalizeRelative(workspace, target) {
 }
 
 // src/locks.ts
-import { createHash } from "node:crypto";
-import { mkdir, open, readFile, rm } from "node:fs/promises";
+import { createHash as createHash2 } from "node:crypto";
+import { mkdir, open, readFile as readFile2, rm } from "node:fs/promises";
 import path3 from "node:path";
 function processExists(pid) {
   try {
@@ -35567,7 +35641,7 @@ var LockManager = class {
     } catch (error51) {
       if (error51.code !== "EEXIST") throw error51;
       try {
-        const existing = JSON.parse(await readFile(target, "utf8"));
+        const existing = JSON.parse(await readFile2(target, "utf8"));
         if (processExists(existing.pid)) return false;
       } catch {
       }
@@ -35587,7 +35661,7 @@ var LockManager = class {
     const payload = { pid: process.pid, jobId, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
     let writerPath;
     if (writer) {
-      const digest = createHash("sha256").update(path3.resolve(workspace).toLowerCase()).digest("hex");
+      const digest = createHash2("sha256").update(path3.resolve(workspace).toLowerCase()).digest("hex");
       writerPath = path3.join(this.directory, `writer-${digest}.lock`);
       if (!await this.tryCreate(writerPath, payload)) return void 0;
     }
@@ -35603,21 +35677,108 @@ var LockManager = class {
   }
 };
 
-// src/recovery.ts
-import { createHash as createHash2 } from "node:crypto";
-import { copyFile, lstat, mkdir as mkdir2, readFile as readFile2, readdir, rm as rm2, stat, writeFile } from "node:fs/promises";
+// src/kimi-home.ts
+import { link, mkdir as mkdir2, readFile as readFile3, rm as rm2, stat, symlink, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path4 from "node:path";
+function defaultKimiHome() {
+  return path4.resolve(process.env.KIMI_CODE_HOME ?? path4.join(os.homedir(), ".kimi-code"));
+}
+async function exists(candidate) {
+  try {
+    await stat(candidate);
+    return true;
+  } catch {
+    return false;
+  }
+}
+function safeConfig(raw) {
+  const lines = raw.split(/\r?\n/);
+  const root = lines.find((line) => /^\s*default_model\s*=/.test(line));
+  const blocks = [];
+  let current;
+  for (const line of lines) {
+    const section = line.match(/^\s*\[(.+)]\s*$/);
+    if (section) {
+      current = { name: section[1], lines: [line] };
+      blocks.push(current);
+    } else if (current) current.lines.push(line);
+  }
+  const managed = blocks.find((block) => block.name === 'providers."managed:kimi-code"');
+  const oauth = blocks.find((block) => block.name === 'providers."managed:kimi-code".oauth');
+  const models = blocks.filter((block) => block.name.startsWith("models.") && block.lines.some((line) => /^\s*provider\s*=\s*"managed:kimi-code"\s*$/.test(line)));
+  if (!root || !managed || !oauth || models.length === 0) throw new Error("Managed Kimi OAuth configuration unavailable for isolated ACP runtime");
+  const apiKey = managed.lines.find((line) => /^\s*api_key\s*=/.test(line));
+  if (apiKey && !/^\s*api_key\s*=\s*""\s*$/.test(apiKey)) {
+    throw new Error("Non-empty config API keys are not copied into isolated ACP runtime; use Kimi managed OAuth");
+  }
+  const allowed = (block, keys) => [
+    block.lines[0],
+    ...block.lines.slice(1).filter((line) => keys.some((key) => new RegExp(`^\\s*${key}\\s*=`).test(line)))
+  ].join("\n");
+  const output = [
+    root,
+    allowed(managed, ["type", "api_key", "base_url"]),
+    allowed(oauth, ["storage", "key"]),
+    ...models.map((block) => allowed(block, ["provider", "model", "max_context_size", "max_input_size", "capabilities", "display_name", "support_efforts", "default_effort"]))
+  ];
+  return `${output.join("\n\n")}
+`;
+}
+var IsolatedKimiHome = class {
+  constructor(base, source = defaultKimiHome()) {
+    this.base = base;
+    this.source = source;
+  }
+  base;
+  source;
+  async prepare(id) {
+    if (!/^[a-z0-9-]+$/i.test(id)) throw new Error("Invalid isolated Kimi home ID");
+    const target = path4.join(this.base, id);
+    await rm2(target, { recursive: true, force: true });
+    await mkdir2(target, { recursive: true });
+    try {
+      const credentials = path4.join(this.source, "credentials");
+      if (!await exists(credentials)) throw new Error("Kimi credentials directory unavailable for isolated ACP runtime");
+      await symlink(credentials, path4.join(target, "credentials"), process.platform === "win32" ? "junction" : "dir");
+      const device = path4.join(this.source, "device_id");
+      if (await exists(device)) await link(device, path4.join(target, "device_id"));
+      const config2 = safeConfig(await readFile3(path4.join(this.source, "config.toml"), "utf8"));
+      await writeFile(path4.join(target, "config.toml"), config2, { encoding: "utf8", mode: 384 });
+      return target;
+    } catch (error51) {
+      await rm2(target, { recursive: true, force: true });
+      throw error51;
+    }
+  }
+  async dispose(id) {
+    const target = path4.resolve(this.base, id);
+    const base = path4.resolve(this.base);
+    if (path4.dirname(target) !== base) throw new Error("Refusing to remove unexpected isolated Kimi home");
+    await rm2(target, { recursive: true, force: true });
+  }
+};
+
+// src/recovery.ts
+import { createHash as createHash3 } from "node:crypto";
+import { copyFile, lstat, mkdir as mkdir3, readFile as readFile4, readdir, rm as rm3, stat as stat2, writeFile as writeFile2 } from "node:fs/promises";
+import path5 from "node:path";
 var MAX_BYTES = 1024 ** 3;
 var MAX_FILES = 1e5;
 var DISPOSABLE = /* @__PURE__ */ new Set(["node_modules", ".venv", "venv", "dist", "build", "target", ".cache", ".pytest_cache", ".mypy_cache", ".ruff_cache", "coverage"]);
+function assertCheckpointLimits(files, bytes) {
+  if (files > MAX_FILES || bytes > MAX_BYTES) {
+    throw new Error("Recovery checkpoint exceeds 100,000 files or 1 GiB; job refused");
+  }
+}
 function disposable(relative) {
   return relative.split(/[\\/]/).some((segment) => DISPOSABLE.has(segment.toLowerCase()));
 }
 async function walk(root, current = root) {
   const output = [];
   for (const entry of await readdir(current, { withFileTypes: true })) {
-    const full = path4.join(current, entry.name);
-    const relative = path4.relative(root, full);
+    const full = path5.join(current, entry.name);
+    const relative = path5.relative(root, full);
     if (disposable(relative) || entry.name === ".git") continue;
     if (entry.isDirectory()) output.push(...await walk(root, full));
     else if (entry.isFile()) output.push(relative);
@@ -35632,7 +35793,7 @@ function parseStatusPaths(raw) {
 }
 async function copyCandidate(workspace, recoveryRoot, relative, manifest) {
   if (disposable(relative)) return;
-  const source = path4.resolve(workspace, relative);
+  const source = path5.resolve(workspace, relative);
   normalizeRelative(workspace, source);
   let info;
   try {
@@ -35644,10 +35805,10 @@ async function copyCandidate(workspace, recoveryRoot, relative, manifest) {
   if (!info.isFile()) return;
   manifest.files += 1;
   manifest.bytes += info.size;
-  if (manifest.files > MAX_FILES || manifest.bytes > MAX_BYTES) throw new Error("Recovery checkpoint exceeds 100,000 files or 1 GiB; job refused");
+  assertCheckpointLimits(manifest.files, manifest.bytes);
   const normalized = relative.replaceAll("\\", "/");
-  const destination = path4.join(recoveryRoot, "files", ...normalized.split("/"));
-  await mkdir2(path4.dirname(destination), { recursive: true });
+  const destination = path5.join(recoveryRoot, "files", ...normalized.split("/"));
+  await mkdir3(path5.dirname(destination), { recursive: true });
   await copyFile(source, destination);
   if (!manifest.copied.includes(normalized)) manifest.copied.push(normalized);
 }
@@ -35657,16 +35818,16 @@ var RecoveryManager = class {
   }
   recoveryBase;
   root(jobId) {
-    return path4.join(this.recoveryBase, jobId);
+    return path5.join(this.recoveryBase, jobId);
   }
   manifestPath(jobId) {
-    return path4.join(this.root(jobId), "manifest.json");
+    return path5.join(this.root(jobId), "manifest.json");
   }
   async create(jobId, workspace) {
     const root = this.root(jobId);
-    await mkdir2(root, { recursive: true });
+    await mkdir3(root, { recursive: true });
     const git = await isGitRepository(workspace);
-    const manifest = { jobId, workspace: path4.resolve(workspace), createdAt: (/* @__PURE__ */ new Date()).toISOString(), git, copied: [], absent: [], bytes: 0, files: 0 };
+    const manifest = { jobId, workspace: path5.resolve(workspace), createdAt: (/* @__PURE__ */ new Date()).toISOString(), git, copied: [], absent: [], bytes: 0, files: 0 };
     try {
       let candidates = [];
       if (git) {
@@ -35676,31 +35837,31 @@ var RecoveryManager = class {
         const ignored = await gitOutput(workspace, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"]);
         candidates.push(...ignored.split("\0").filter(Boolean));
         if (manifest.baselineHead) {
-          const bundle = path4.join(root, "repository.bundle");
+          const bundle = path5.join(root, "repository.bundle");
           await runFile("git", ["-C", workspace, "bundle", "create", bundle, "--all"], void 0, 12e4);
-          const bundleSize = (await stat(bundle)).size;
+          const bundleSize = (await stat2(bundle)).size;
           manifest.bytes += bundleSize;
-          if (manifest.bytes > MAX_BYTES) throw new Error("Recovery checkpoint exceeds 1 GiB; job refused");
+          assertCheckpointLimits(manifest.files, manifest.bytes);
         }
       } else {
         candidates = await walk(workspace);
       }
       for (const relative of [...new Set(candidates)]) await copyCandidate(workspace, root, relative, manifest);
-      await writeFile(this.manifestPath(jobId), `${JSON.stringify(manifest, null, 2)}
+      await writeFile2(this.manifestPath(jobId), `${JSON.stringify(manifest, null, 2)}
 `, { encoding: "utf8", mode: 384 });
       return manifest;
     } catch (error51) {
-      await rm2(root, { recursive: true, force: true });
+      await rm3(root, { recursive: true, force: true });
       throw error51;
     }
   }
   async load(jobId) {
-    return JSON.parse(await readFile2(this.manifestPath(jobId), "utf8"));
+    return JSON.parse(await readFile4(this.manifestPath(jobId), "utf8"));
   }
   extractPaths(call) {
     const output = (call.locations ?? []).map((location) => location.path);
     const scan = (value, key = "") => {
-      if (typeof value === "string" && /^(?:path|file|destination|source)$/i.test(key) && path4.isAbsolute(value)) output.push(value);
+      if (typeof value === "string" && /^(?:path|file|destination|source)$/i.test(key) && path5.isAbsolute(value)) output.push(value);
       else if (Array.isArray(value)) value.forEach((entry) => scan(entry, key));
       else if (value && typeof value === "object") Object.entries(value).forEach(([child, entry]) => scan(entry, child));
     };
@@ -35719,7 +35880,7 @@ var RecoveryManager = class {
       if (relative === "." || manifest.copied.includes(relative) || manifest.absent.includes(relative)) continue;
       await copyCandidate(manifest.workspace, this.root(jobId), relative, manifest);
     }
-    await writeFile(this.manifestPath(jobId), `${JSON.stringify(manifest, null, 2)}
+    await writeFile2(this.manifestPath(jobId), `${JSON.stringify(manifest, null, 2)}
 `, { encoding: "utf8", mode: 384 });
   }
   async restore(jobId, paths, confirmation) {
@@ -35727,18 +35888,18 @@ var RecoveryManager = class {
     const manifest = await this.load(jobId);
     const restored = [];
     for (const requested of paths) {
-      const target = path4.resolve(manifest.workspace, requested);
+      const target = path5.resolve(manifest.workspace, requested);
       const relative = normalizeRelative(manifest.workspace, target);
-      const stored = path4.join(this.root(jobId), "files", ...relative.split("/"));
+      const stored = path5.join(this.root(jobId), "files", ...relative.split("/"));
       if (manifest.copied.includes(relative)) {
-        await mkdir2(path4.dirname(target), { recursive: true });
+        await mkdir3(path5.dirname(target), { recursive: true });
         await copyFile(stored, target);
       } else if (manifest.git && manifest.baselineHead) {
         const spec = `${manifest.baselineHead}:${relative.replaceAll("\\", "/")}`;
         try {
           const { stdout } = await runFile("git", ["-C", manifest.workspace, "show", spec], void 0, 6e4);
-          await mkdir2(path4.dirname(target), { recursive: true });
-          await writeFile(target, stdout, "utf8");
+          await mkdir3(path5.dirname(target), { recursive: true });
+          await writeFile2(target, stdout, "utf8");
         } catch {
           throw new Error(`Path was not checkpointed: ${relative}`);
         }
@@ -35750,20 +35911,20 @@ var RecoveryManager = class {
     return restored;
   }
   static fingerprint(value) {
-    return createHash2("sha256").update(value).digest("hex");
+    return createHash3("sha256").update(value).digest("hex");
   }
 };
 
 // src/storage.ts
-import { mkdir as mkdir3, readFile as readFile3, readdir as readdir2, rename, rm as rm3, stat as stat2, writeFile as writeFile2 } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
-import os from "node:os";
-import path5 from "node:path";
+import { mkdir as mkdir4, readFile as readFile5, readdir as readdir2, rename, rm as rm4, stat as stat3, writeFile as writeFile3 } from "node:fs/promises";
+import { randomUUID as randomUUID2 } from "node:crypto";
+import os2 from "node:os";
+import path6 from "node:path";
 var RETENTION_MS = 7 * 24 * 60 * 60 * 1e3;
 function runtimeRoot() {
-  if (process.env.KIMI_SUBAGENTS_HOME) return path5.resolve(process.env.KIMI_SUBAGENTS_HOME);
-  const local = process.env.LOCALAPPDATA ?? path5.join(os.homedir(), "AppData", "Local");
-  return path5.join(local, "kimi-subagents");
+  if (process.env.KIMI_SUBAGENTS_HOME) return path6.resolve(process.env.KIMI_SUBAGENTS_HOME);
+  const local = process.env.LOCALAPPDATA ?? path6.join(os2.homedir(), "AppData", "Local");
+  return path6.join(local, "kimi-subagents");
 }
 var RecordStore = class {
   root;
@@ -35773,25 +35934,25 @@ var RecordStore = class {
   writes = /* @__PURE__ */ new Map();
   constructor(root = runtimeRoot()) {
     this.root = root;
-    this.jobsDir = path5.join(root, "jobs");
-    this.recoveryDir = path5.join(root, "recovery");
-    this.locksDir = path5.join(root, "locks");
+    this.jobsDir = path6.join(root, "jobs");
+    this.recoveryDir = path6.join(root, "recovery");
+    this.locksDir = path6.join(root, "locks");
   }
   async initialize() {
-    await Promise.all([this.jobsDir, this.recoveryDir, this.locksDir].map((dir) => mkdir3(dir, { recursive: true })));
+    await Promise.all([this.jobsDir, this.recoveryDir, this.locksDir].map((dir) => mkdir4(dir, { recursive: true })));
   }
   recordPath(id) {
     if (!/^[a-f0-9-]{36}$/i.test(id)) throw new Error("Invalid job ID");
-    return path5.join(this.jobsDir, `${id}.json`);
+    return path6.join(this.jobsDir, `${id}.json`);
   }
   async saveNow(record2) {
     await this.initialize();
     const target = this.recordPath(record2.id);
-    const temporary = `${target}.${process.pid}.${randomUUID()}.tmp`;
+    const temporary = `${target}.${process.pid}.${randomUUID2()}.tmp`;
     const backup = `${target}.bak`;
-    await writeFile2(temporary, `${JSON.stringify(redactJson(record2), null, 2)}
+    await writeFile3(temporary, `${JSON.stringify(redactJson(record2), null, 2)}
 `, { encoding: "utf8", mode: 384 });
-    await rm3(backup, { force: true });
+    await rm4(backup, { force: true });
     try {
       await rename(target, backup);
     } catch (error51) {
@@ -35799,13 +35960,13 @@ var RecordStore = class {
     }
     try {
       await rename(temporary, target);
-      await rm3(backup, { force: true });
+      await rm4(backup, { force: true });
     } catch (error51) {
       try {
         await rename(backup, target);
       } catch {
       }
-      await rm3(temporary, { force: true });
+      await rm4(temporary, { force: true });
       throw error51;
     }
   }
@@ -35822,11 +35983,11 @@ var RecordStore = class {
   async get(id) {
     const target = this.recordPath(id);
     try {
-      return JSON.parse(await readFile3(target, "utf8"));
+      return JSON.parse(await readFile5(target, "utf8"));
     } catch (error51) {
       if (error51.code === "ENOENT") {
         try {
-          return JSON.parse(await readFile3(`${target}.bak`, "utf8"));
+          return JSON.parse(await readFile5(`${target}.bak`, "utf8"));
         } catch (backupError) {
           if (backupError.code === "ENOENT") return void 0;
           throw backupError;
@@ -35846,15 +36007,15 @@ var RecordStore = class {
     let removed = 0;
     for (const record2 of await this.list()) {
       if (now - Date.parse(record2.updatedAt) <= RETENTION_MS) continue;
-      await rm3(this.recordPath(record2.id), { force: true });
-      await rm3(path5.join(this.recoveryDir, record2.id), { recursive: true, force: true });
+      await rm4(this.recordPath(record2.id), { force: true });
+      await rm4(path6.join(this.recoveryDir, record2.id), { recursive: true, force: true });
       removed += 1;
     }
     return removed;
   }
   async recoveryExists(id) {
     try {
-      return (await stat2(path5.join(this.recoveryDir, id, "manifest.json"))).isFile();
+      return (await stat3(path6.join(this.recoveryDir, id, "manifest.json"))).isFile();
     } catch {
       return false;
     }
@@ -35881,10 +36042,11 @@ var JobManager = class {
   inputs = /* @__PURE__ */ new Map();
   active = /* @__PURE__ */ new Set();
   pumpTimer;
+  pumping = false;
   constructor(store = new RecordStore()) {
     this.store = store;
     this.recovery = new RecoveryManager(store.recoveryDir);
-    this.runner = new AcpRunner(this.recovery);
+    this.runner = new AcpRunner(this.recovery, "kimi", ["acp"], new IsolatedKimiHome(path7.join(store.root, "kimi-homes")));
     this.locks = new LockManager(store.locksDir);
   }
   async initialize() {
@@ -35902,26 +36064,40 @@ var JobManager = class {
     }
   }
   async validateInput(input) {
-    if (!path6.isAbsolute(input.workspace)) throw new Error("workspace must be an absolute path");
-    const workspace = path6.resolve(input.workspace);
-    if (!(await stat3(workspace)).isDirectory()) throw new Error("workspace must be an existing directory");
+    if (!path7.isAbsolute(input.workspace)) throw new Error("workspace must be an absolute path");
+    const workspace = path7.resolve(input.workspace);
+    if (!(await stat4(workspace)).isDirectory()) throw new Error("workspace must be an existing directory");
+    await this.assertNoProjectMcp(workspace);
     const additionalRoots = [];
     for (const root of input.additionalRoots ?? []) {
-      if (!path6.isAbsolute(root)) throw new Error("Every additional root must be absolute");
-      const resolved = path6.resolve(root);
-      if (!(await stat3(resolved)).isDirectory()) throw new Error(`Additional root does not exist: ${resolved}`);
+      if (!path7.isAbsolute(root)) throw new Error("Every additional root must be absolute");
+      const resolved = path7.resolve(root);
+      if (!(await stat4(resolved)).isDirectory()) throw new Error(`Additional root does not exist: ${resolved}`);
+      await this.assertNoProjectMcp(resolved);
       additionalRoots.push(resolved);
     }
     return { ...input, workspace, additionalRoots };
   }
+  async assertNoProjectMcp(root) {
+    const config2 = path7.join(root, ".kimi-code", "mcp.json");
+    try {
+      const parsed = JSON.parse(await readFile6(config2, "utf8"));
+      const enabled = Object.entries(parsed.mcpServers ?? {}).filter(([, value]) => value.enabled !== false).map(([name]) => name);
+      if (enabled.length > 0) throw new Error(`Project-local Kimi MCP servers are blocked for delegated jobs: ${enabled.join(", ")}`);
+    } catch (error51) {
+      if (error51.code === "ENOENT") return;
+      if (error51 instanceof SyntaxError) throw new Error("Project-local .kimi-code/mcp.json is malformed; delegated job refused", { cause: error51 });
+      throw error51;
+    }
+  }
   async preflight(workspace = process.cwd()) {
-    const resolved = path6.resolve(workspace);
-    if (!(await stat3(resolved)).isDirectory()) throw new Error("Preflight workspace must be an existing directory");
+    const resolved = path7.resolve(workspace);
+    if (!(await stat4(resolved)).isDirectory()) throw new Error("Preflight workspace must be an existing directory");
     return this.runner.preflight(resolved);
   }
   async start(raw) {
     const input = await this.validateInput(raw);
-    const id = randomUUID2();
+    const id = randomUUID3();
     const now = (/* @__PURE__ */ new Date()).toISOString();
     const record2 = {
       id,
@@ -35951,10 +36127,14 @@ var JobManager = class {
     return record2;
   }
   schedulePump(delay = 250) {
-    if (this.pumpTimer) return;
+    if (this.pumpTimer || this.pumping) return;
     this.pumpTimer = setTimeout(() => {
       this.pumpTimer = void 0;
-      void this.pump();
+      this.pumping = true;
+      void this.pump().finally(() => {
+        this.pumping = false;
+        if (this.inputs.size > this.active.size) this.schedulePump();
+      });
     }, delay);
     this.pumpTimer.unref();
   }
@@ -35982,11 +36162,13 @@ var JobManager = class {
   async runOne(jobId, input, held) {
     let timer;
     let baselineStatus = "";
+    let baselineTree = [];
     try {
       await this.update(jobId, { status: "preparing", startedAt: (/* @__PURE__ */ new Date()).toISOString(), progress: "Preparing workspace" });
       const git = await isGitRepository(input.workspace);
       const baselineCommit = git ? await gitHead(input.workspace) : void 0;
       if (git) baselineStatus = await gitOutput(input.workspace, ["status", "--porcelain=v1", "--untracked-files=all"]);
+      if (git) baselineTree = await workingTreeSnapshot(input.workspace, baselineStatus);
       await this.update(jobId, { baselineCommit });
       if (input.jobType === "execute" && git && await gitDirty(input.workspace) && !input.allowDirty) {
         await this.update(jobId, { status: "blocked", error: "Execute job refused: Git working tree is dirty. Explicit dirty override required.", finishedAt: (/* @__PURE__ */ new Date()).toISOString() });
@@ -36024,21 +36206,24 @@ var JobManager = class {
         }
       }
       if (!result2) throw new Error("ACP job ended without a result");
-      const diff = await changedFiles(input.workspace, baselineCommit);
+      const diff = await changedFiles(input.workspace, baselineCommit, baselineTree);
       const currentStatus = git ? await gitOutput(input.workspace, ["status", "--porcelain=v1", "--untracked-files=all"]) : "";
       const readOnlyViolation = input.jobType !== "execute" && git && currentStatus !== baselineStatus;
       const latest = await this.store.get(jobId);
       const cancelled = latest?.status === "cancelled" || result2.stopReason === "cancelled";
+      const emptyResult = !cancelled && !result2.finalMessage.trim();
       await this.update(jobId, {
-        status: cancelled ? "cancelled" : readOnlyViolation ? "failed" : "completed",
+        status: cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
         stopReason: result2.stopReason,
         finalMessage: result2.finalMessage,
+        diagnostics: result2.diagnostics,
         usage: result2.usage,
         blockedActions: result2.blockedActions,
         changedFiles: diff.files,
+        preExistingChangedFiles: diff.preExistingFiles,
         diffSummary: readOnlyViolation ? `READ-ONLY VIOLATION: ${diff.summary}` : diff.summary,
         resultingCommit: diff.head,
-        error: readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy." : void 0,
+        error: readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy." : emptyResult ? "Kimi ACP returned no final message; result rejected." : void 0,
         finishedAt: (/* @__PURE__ */ new Date()).toISOString(),
         progress: cancelled ? "Cancelled" : "Finished"
       });
@@ -36096,7 +36281,7 @@ var JobManager = class {
 };
 
 // src/server.ts
-var SERVER_VERSION = "0.1.0";
+var SERVER_VERSION = "0.1.1";
 function result(value) {
   const structuredContent = { result: value };
   return { content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }], structuredContent };

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { Readable, Writable } from "node:stream";
 
@@ -16,6 +17,7 @@ import {
 } from "@agentclientprotocol/sdk";
 
 import { decideTool, selectPermission } from "./policy.js";
+import type { IsolatedKimiHome } from "./kimi-home.js";
 import { redact, safeError } from "./redaction.js";
 import type { RecoveryManager } from "./recovery.js";
 import { runFile, sanitizedChildEnv, terminateProcessTree } from "./process.js";
@@ -63,16 +65,17 @@ function promptFor(input: StartJobInput): string {
   if (input.jobType === "plan") common.push("PLAN JOB: use native ACP plan mode. Do not modify files.");
   if (input.jobType === "execute") {
     common.push("EXECUTE JOB: local edits, tests, builds, installs, and development commands are allowed unless blocked by policy.");
+    common.push(`WORKSPACE ROOT: ${input.workspace}. Use absolute paths for every file mutation. For shell commands, set the working directory explicitly to this root.`);
     common.push(input.allowCommit ? "A local Git commit is explicitly allowed." : "Do not create a Git commit.");
   }
   common.push(`TASK:\n${input.task}`);
   return common.join("\n\n");
 }
 
-function spawnAgent(command: string, args: string[], workspace: string): ChildProcessWithoutNullStreams {
+function spawnAgent(command: string, args: string[], workspace: string, isolatedHome?: string): ChildProcessWithoutNullStreams {
   return spawn(command, args, {
     cwd: workspace,
-    env: sanitizedChildEnv(),
+    env: sanitizedChildEnv(isolatedHome ? { KIMI_CODE_HOME: isolatedHome } : {}),
     shell: false,
     windowsHide: true,
     detached: process.platform !== "win32",
@@ -87,7 +90,8 @@ export class AcpRunner {
   constructor(
     private readonly recovery: RecoveryManager,
     private readonly command = "kimi",
-    private readonly commandArgs = ["acp"]
+    private readonly commandArgs = ["acp"],
+    private readonly isolatedHome?: IsolatedKimiHome
   ) {}
 
   async preflight(workspace: string): Promise<PreflightResult> {
@@ -104,13 +108,21 @@ export class AcpRunner {
     if (!result.node.supported) errors.push("Node 20 or newer required");
     if (kimiVersion && !result.kimi.supported) errors.push("Kimi Code 0.29.2 or newer required");
     if (!result.node.supported || !result.kimi.supported) return result;
-    const child = spawnAgent(this.command, this.commandArgs, workspace);
+    const isolationId = `preflight-${randomUUID()}`;
+    let home: string | undefined;
+    try {
+      home = await this.isolatedHome?.prepare(isolationId);
+    } catch (error) {
+      errors.push(`Safe Kimi runtime isolation unavailable: ${safeError(error)}`);
+      return result;
+    }
+    const child = spawnAgent(this.command, this.commandArgs, workspace, home);
     let diagnostics = "";
     child.stderr.on("data", (chunk: Buffer) => { diagnostics = `${diagnostics}${chunk.toString("utf8")}`.slice(-8192); });
     const client: Client = { requestPermission: () => ({ outcome: { outcome: "cancelled" } }), sessionUpdate: () => undefined };
     const connection = new ClientSideConnection(() => client, childStream(child));
     try {
-      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.1.0" } });
+      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.1.1" } });
       const session = await connection.newSession({ cwd: workspace, mcpServers: [] });
       result.kimi.authenticated = true;
       result.acp = { protocolVersion: initialized.protocolVersion, sessionCreated: Boolean(session.sessionId), capabilities: initialized.agentCapabilities };
@@ -122,12 +134,14 @@ export class AcpRunner {
       child.stdin.end();
       await Promise.race([waitForExit(child).catch(() => null), new Promise<null>((resolve) => setTimeout(() => resolve(null), 1500))]);
       if (child.pid && child.exitCode === null) await terminateProcessTree(child.pid);
+      if (home) await this.isolatedHome?.dispose(isolationId);
     }
     return result;
   }
 
   async run(jobId: string, input: StartJobInput, callbacks: RunnerCallbacks = {}): Promise<RunResult> {
-    const child = spawnAgent(this.command, this.commandArgs, input.workspace);
+    const home = await this.isolatedHome?.prepare(jobId);
+    const child = spawnAgent(this.command, this.commandArgs, input.workspace, home);
     let diagnostics = "";
     child.stderr.on("data", (chunk: Buffer) => { diagnostics = `${diagnostics}${chunk.toString("utf8")}`.slice(-8192); });
     const roots = [input.workspace, ...(input.additionalRoots ?? [])];
@@ -168,7 +182,7 @@ export class AcpRunner {
       const initialized: InitializeResponse = await connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { plan: {} },
-        clientInfo: { name: "kimi-subagents", version: "0.1.0" }
+        clientInfo: { name: "kimi-subagents", version: "0.1.1" }
       });
       const session = await connection.newSession({ cwd: input.workspace, additionalDirectories: input.additionalRoots ?? [], mcpServers: [] });
       sessionId = session.sessionId;
@@ -200,6 +214,7 @@ export class AcpRunner {
       this.active.delete(jobId);
       this.cancelling.delete(jobId);
       if (child.pid && child.exitCode === null) await terminateProcessTree(child.pid);
+      if (home) await this.isolatedHome?.dispose(jobId);
     }
   }
 

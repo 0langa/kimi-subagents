@@ -24,6 +24,12 @@ export interface RecoveryManifest {
   files: number;
 }
 
+export function assertCheckpointLimits(files: number, bytes: number): void {
+  if (files > MAX_FILES || bytes > MAX_BYTES) {
+    throw new Error("Recovery checkpoint exceeds 100,000 files or 1 GiB; job refused");
+  }
+}
+
 function disposable(relative: string): boolean {
   return relative.split(/[\\/]/).some((segment) => DISPOSABLE.has(segment.toLowerCase()));
 }
@@ -56,7 +62,7 @@ async function copyCandidate(workspace: string, recoveryRoot: string, relative: 
   if (!info.isFile()) return;
   manifest.files += 1;
   manifest.bytes += info.size;
-  if (manifest.files > MAX_FILES || manifest.bytes > MAX_BYTES) throw new Error("Recovery checkpoint exceeds 100,000 files or 1 GiB; job refused");
+  assertCheckpointLimits(manifest.files, manifest.bytes);
   const normalized = relative.replaceAll("\\", "/");
   const destination = path.join(recoveryRoot, "files", ...normalized.split("/"));
   await mkdir(path.dirname(destination), { recursive: true });
@@ -88,7 +94,7 @@ export class RecoveryManager {
           await runFile("git", ["-C", workspace, "bundle", "create", bundle, "--all"], undefined, 120_000);
           const bundleSize = (await stat(bundle)).size;
           manifest.bytes += bundleSize;
-          if (manifest.bytes > MAX_BYTES) throw new Error("Recovery checkpoint exceeds 1 GiB; job refused");
+          assertCheckpointLimits(manifest.files, manifest.bytes);
         }
       } else {
         candidates = await walk(workspace);

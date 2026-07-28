@@ -8,6 +8,7 @@ Codex / Claude Code
      -> RecordStore: atomic redacted records, seven-day retention
      -> RecoveryManager: checkpoint and selected restore
      -> AcpRunner: one `kimi acp` process/job
+        -> isolated temporary KIMI_CODE_HOME; managed OAuth link; filtered model config
         <-> ACP initialize, session/new, config, prompt, updates, permissions, cancel
         -> Kimi tools inside granted roots
 ```
@@ -20,13 +21,14 @@ Job lifecycle is `queued -> preparing -> running -> completed|failed|blocked|can
 
 ## ACP lifecycle
 
-1. Spawn installed `kimi acp` without a shell.
-2. Initialize ACP v1 and create fresh session with no forwarded MCP servers.
-3. Set native `mode=plan` for plan jobs; set model/thinking only when explicitly supplied.
-4. Stream redacted progress and tool metadata into job record.
-5. Broker each permission request.
-6. Capture final message, stop reason, ACP usage when present, blocked actions, Git status, and commit range.
-7. Close stdin; force-terminate process tree if it does not exit. Host shutdown cancels all active jobs.
+1. Build temporary Kimi home containing managed OAuth credential link and filtered provider/model config only. Refuse enabled project-local Kimi MCP configuration.
+2. Spawn installed `kimi acp` without a shell and with isolated `KIMI_CODE_HOME`.
+3. Initialize ACP v1 and create fresh session with no forwarded or inherited MCP servers.
+4. Set native `mode=plan` for plan jobs; set model/thinking only when explicitly supplied.
+5. Stream redacted progress and tool metadata into job record.
+6. Broker each permission request.
+7. Capture final message, stop reason, ACP usage when present, blocked actions, pre-existing dirty paths, job-attributed paths, and commit range.
+8. Close stdin; force-terminate process tree if it does not exit. Remove isolated Kimi session/log state. Host shutdown cancels all active jobs.
 
 `/goal` is absent. Kimi Code 0.29.2 ACP returned `Unknown ACP command: /goal` during live verification.
 

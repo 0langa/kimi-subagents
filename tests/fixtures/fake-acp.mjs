@@ -4,6 +4,11 @@ import process from "node:process";
 import { Readable, Writable } from "node:stream";
 import { setTimeout as delay } from "node:timers/promises";
 
+if (process.env.FAKE_ACP_MODE === "malformed") {
+  process.stdout.write("{malformed-acp-frame}\n");
+  process.exit(0);
+}
+
 const sessions = new Map();
 
 const implementation = {

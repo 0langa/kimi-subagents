@@ -18,4 +18,4 @@ used_by:
 
 ## Notes
 
-Runtime sends no forwarded MCP servers. Live Kimi 0.29.2 additionally verified initialize and session/new. `/goal` was not advertised and returned `Unknown ACP command: /goal`.
+Runtime sends no forwarded MCP servers. Live Kimi 0.29.2 additionally verified initialize and session/new. User/project Kimi MCP configuration is separate from ACP-forwarded servers, so runtime isolation is documented in the companion `kimi-code-config-isolation` note. `/goal` was not advertised and returned `Unknown ACP command: /goal`.
