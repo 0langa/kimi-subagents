@@ -3229,8 +3229,8 @@ var require_utils = __commonJS({
       }
       return ind;
     }
-    function removeDotSegments(path9) {
-      let input = path9;
+    function removeDotSegments(path10) {
+      let input = path10;
       const output = [];
       let nextSlash = -1;
       let len = 0;
@@ -3482,8 +3482,8 @@ var require_schemes = __commonJS({
         wsComponent.secure = void 0;
       }
       if (wsComponent.resourceName) {
-        const [path9, query] = wsComponent.resourceName.split("?");
-        wsComponent.path = path9 && path9 !== "/" ? path9 : void 0;
+        const [path10, query] = wsComponent.resourceName.split("?");
+        wsComponent.path = path10 && path10 !== "/" ? path10 : void 0;
         wsComponent.query = query;
         wsComponent.resourceName = void 0;
       }
@@ -7254,8 +7254,8 @@ function getErrorMap() {
 
 // node_modules/zod/v3/helpers/parseUtil.js
 var makeIssue = (params) => {
-  const { data, path: path9, errorMaps, issueData } = params;
-  const fullPath = [...path9, ...issueData.path || []];
+  const { data, path: path10, errorMaps, issueData } = params;
+  const fullPath = [...path10, ...issueData.path || []];
   const fullIssue = {
     ...issueData,
     path: fullPath
@@ -7370,11 +7370,11 @@ var errorUtil;
 
 // node_modules/zod/v3/types.js
 var ParseInputLazyPath = class {
-  constructor(parent, value, path9, key) {
+  constructor(parent, value, path10, key) {
     this._cachedPath = [];
     this.parent = parent;
     this.data = value;
-    this._path = path9;
+    this._path = path10;
     this._key = key;
   }
   get path() {
@@ -11294,10 +11294,10 @@ function mergeDefs(...defs) {
 function cloneDef(schema) {
   return mergeDefs(schema._zod.def);
 }
-function getElementAtPath(obj, path9) {
-  if (!path9)
+function getElementAtPath(obj, path10) {
+  if (!path10)
     return obj;
-  return path9.reduce((acc, key) => acc?.[key], obj);
+  return path10.reduce((acc, key) => acc?.[key], obj);
 }
 function promiseAllObject(promisesObj) {
   const keys = Object.keys(promisesObj);
@@ -11706,11 +11706,11 @@ function explicitlyAborted(x, startIndex = 0) {
   }
   return false;
 }
-function prefixIssues(path9, issues) {
+function prefixIssues(path10, issues) {
   return issues.map((iss) => {
     var _a3;
     (_a3 = iss).path ?? (_a3.path = []);
-    iss.path.unshift(path9);
+    iss.path.unshift(path10);
     return iss;
   });
 }
@@ -11857,16 +11857,16 @@ function flattenError(error51, mapper = (issue2) => issue2.message) {
 }
 function formatError(error51, mapper = (issue2) => issue2.message) {
   const fieldErrors = { _errors: [] };
-  const processError = (error52, path9 = []) => {
+  const processError = (error52, path10 = []) => {
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path9, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path10, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
       } else {
-        const fullpath = [...path9, ...issue2.path];
+        const fullpath = [...path10, ...issue2.path];
         if (fullpath.length === 0) {
           fieldErrors._errors.push(mapper(issue2));
         } else {
@@ -11893,17 +11893,17 @@ function formatError(error51, mapper = (issue2) => issue2.message) {
 }
 function treeifyError(error51, mapper = (issue2) => issue2.message) {
   const result2 = { errors: [] };
-  const processError = (error52, path9 = []) => {
+  const processError = (error52, path10 = []) => {
     var _a3, _b;
     for (const issue2 of error52.issues) {
       if (issue2.code === "invalid_union" && issue2.errors.length) {
-        issue2.errors.map((issues) => processError({ issues }, [...path9, ...issue2.path]));
+        issue2.errors.map((issues) => processError({ issues }, [...path10, ...issue2.path]));
       } else if (issue2.code === "invalid_key") {
-        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
       } else if (issue2.code === "invalid_element") {
-        processError({ issues: issue2.issues }, [...path9, ...issue2.path]);
+        processError({ issues: issue2.issues }, [...path10, ...issue2.path]);
       } else {
-        const fullpath = [...path9, ...issue2.path];
+        const fullpath = [...path10, ...issue2.path];
         if (fullpath.length === 0) {
           result2.errors.push(mapper(issue2));
           continue;
@@ -11935,8 +11935,8 @@ function treeifyError(error51, mapper = (issue2) => issue2.message) {
 }
 function toDotPath(_path) {
   const segs = [];
-  const path9 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
-  for (const seg of path9) {
+  const path10 = _path.map((seg) => typeof seg === "object" ? seg.key : seg);
+  for (const seg of path10) {
     if (typeof seg === "number")
       segs.push(`[${seg}]`);
     else if (typeof seg === "symbol")
@@ -23048,11 +23048,11 @@ function normalizeObjectSchema(schema) {
   }
   return void 0;
 }
-function getDotPath(path9) {
-  if (path9.length === 0) {
+function getDotPath(path10) {
+  if (path10.length === 0) {
     return "object root";
   }
-  return path9.reduce((acc, seg, index) => {
+  return path10.reduce((acc, seg, index) => {
     if (index === 0) {
       return String(seg);
     }
@@ -25077,13 +25077,13 @@ function resolveRef(ref, ctx) {
   if (!ref.startsWith("#")) {
     throw new Error("External $ref is not supported, only local refs (#/...) are allowed");
   }
-  const path9 = ref.slice(1).split("/").filter(Boolean);
-  if (path9.length === 0) {
+  const path10 = ref.slice(1).split("/").filter(Boolean);
+  if (path10.length === 0) {
     return ctx.rootSchema;
   }
   const defsKey = ctx.version === "draft-2020-12" ? "$defs" : "definitions";
-  if (path9[0] === defsKey) {
-    const key = path9[1];
+  if (path10[0] === defsKey) {
+    const key = path10[1];
     if (!key || !ctx.defs[key]) {
       throw new Error(`Reference not found: ${ref}`);
     }
@@ -30986,7 +30986,7 @@ import { pathToFileURL } from "node:url";
 // src/job-manager.ts
 import { randomUUID as randomUUID3 } from "node:crypto";
 import { readFile as readFile7, stat as stat4 } from "node:fs/promises";
-import path8 from "node:path";
+import path9 from "node:path";
 
 // src/acp-runner.ts
 import { randomUUID } from "node:crypto";
@@ -35154,8 +35154,53 @@ var ClientSideConnection = class {
   }
 };
 
-// src/policy.ts
+// src/delegate-runtime.ts
+import os from "node:os";
 import path from "node:path";
+var NETWORK_TOOLS = /* @__PURE__ */ new Set(["FetchURL", "WebSearch"]);
+var SUBAGENT_TOOLS = /* @__PURE__ */ new Set(["Agent", "AgentSwarm"]);
+var SCHEDULING_TOOLS = /* @__PURE__ */ new Set(["CronCreate", "CronDelete"]);
+var GOAL_TOOLS = /* @__PURE__ */ new Set(["CreateGoal", "SetGoalBudget", "UpdateGoal"]);
+var SUBAGENT_DISABLED_TIMEOUT_MS = 1;
+var SUBAGENT_ENABLED_TIMEOUT_MS = 30 * 60 * 1e3;
+var DEFAULT_MAX_STEPS_PER_TURN = 200;
+function delegateEnv(input) {
+  const subagents = Boolean(input.allowSubagents);
+  return {
+    // The delegated process runs with a relocated HOME, so an opted-in Usage
+    // Pulse would otherwise write its counters into the temporary home and lose
+    // them when the job ends.
+    ...input.trackUsage ? { USAGE_PULSE_HOME: path.join(os.homedir(), ".usage-pulse") } : {},
+    KIMI_SUBAGENT_TIMEOUT_MS: String(subagents ? SUBAGENT_ENABLED_TIMEOUT_MS : SUBAGENT_DISABLED_TIMEOUT_MS),
+    KIMI_CODE_AGENT_SWARM_MAX_CONCURRENCY: subagents ? "2" : "1",
+    KIMI_DISABLE_CRON: "1",
+    KIMI_CODE_BACKGROUND_MAX_RUNNING_TASKS: "2",
+    KIMI_DISABLE_TELEMETRY: "1",
+    KIMI_CODE_NO_AUTO_UPDATE: "1",
+    KIMI_CLI_NO_AUTO_UPDATE: "1",
+    KIMI_LOOP_MAX_STEPS_PER_TURN: String(input.maxSteps ?? DEFAULT_MAX_STEPS_PER_TURN)
+  };
+}
+function watchToolCall(toolName, input) {
+  const name = toolName.trim();
+  if (NETWORK_TOOLS.has(name)) {
+    if (input.allowNetwork) return { violation: false, cancel: false, reason: "" };
+    return { violation: true, cancel: true, reason: `${name} is not permitted for delegated jobs; job cancelled` };
+  }
+  if (SUBAGENT_TOOLS.has(name) && !input.allowSubagents) {
+    return { violation: true, cancel: false, reason: `${name} is disabled for delegated jobs and fails immediately` };
+  }
+  if (SCHEDULING_TOOLS.has(name)) {
+    return { violation: true, cancel: false, reason: `${name} is disabled for delegated jobs` };
+  }
+  if (GOAL_TOOLS.has(name)) {
+    return { violation: true, cancel: false, reason: `${name} creates durable state that a delegated job must not own` };
+  }
+  return { violation: false, cancel: false, reason: "" };
+}
+
+// src/policy.ts
+import path2 from "node:path";
 var APPROVAL_PREFIX = "Requesting approval to ";
 var READ_ONLY_TOOLS = /* @__PURE__ */ new Set(["Read", "Grep", "Glob", "ReadMediaFile", "TodoList", "SetTodoList", "TaskList", "TaskOutput", "CronList", "WebSearch", "FetchURL"]);
 var EDIT_TOOLS = /* @__PURE__ */ new Set(["Write", "Edit", "MultiEdit", "NotebookEdit", "StrReplaceFile", "WriteFile", "apply_patch"]);
@@ -35222,10 +35267,10 @@ function extractAction(content) {
   return extracted;
 }
 function insideRoots(roots, candidate) {
-  const resolved = path.resolve(candidate).toLowerCase();
+  const resolved = path2.resolve(candidate).toLowerCase();
   return roots.some((root) => {
-    const base = path.resolve(root).toLowerCase();
-    return resolved === base || resolved.startsWith(`${base}${path.sep}`);
+    const base = path2.resolve(root).toLowerCase();
+    return resolved === base || resolved.startsWith(`${base}${path2.sep}`);
   });
 }
 function absoluteCandidates(command) {
@@ -35270,7 +35315,7 @@ function pathDecision(input, candidates) {
     return { allow: false, reason: "File mutation without an identifiable target path is refused", rule: "unresolved-path" };
   }
   for (const candidate of candidates) {
-    const resolved = path.isAbsolute(candidate) ? candidate : path.resolve(input.workspace, candidate);
+    const resolved = path2.isAbsolute(candidate) ? candidate : path2.resolve(input.workspace, candidate);
     if (!insideRoots(input.roots, resolved)) {
       return { allow: false, reason: `File mutation outside granted roots blocked: ${resolved}`, rule: "workspace-escape" };
     }
@@ -35433,8 +35478,10 @@ function promptFor(input) {
     "You are a delegated Kimi Code worker. Complete only the declared task inside granted roots.",
     "A shell guard inspects every command you run. Destructive Git, remote Git or GitHub mutation, credential access, alternate interpreters (powershell/cmd/wsl) and writes outside the granted roots are denied and exit with code 126.",
     "When a command is denied, do not look for a way around it: report the block and continue with the rest of the task.",
-    "You may use at most two nested agents. Finish with a concise summary, changed files, and checks run."
+    "Finish with a concise summary, changed files, and checks run."
   ];
+  common.push(input.allowNetwork ? "Network access through FetchURL is explicitly allowed for this job." : "No network access: FetchURL and WebSearch are forbidden and calling one cancels the job.");
+  common.push(input.allowSubagents ? "Nested agents are explicitly allowed for this job; use at most two." : "Nested agents are disabled: Agent and AgentSwarm fail immediately, so do the work yourself.");
   common.push(input.allowDelete ? "File deletion inside the granted roots is explicitly allowed for this job." : "File deletion was not delegated: do not delete files.");
   if (input.jobType === "analyze") common.push("READ-ONLY ANALYZE JOB: read and search only. Do not edit files or execute commands.");
   if (input.jobType === "plan") common.push("PLAN JOB: use native ACP plan mode. Do not modify files.");
@@ -35525,7 +35572,7 @@ var AcpRunner = class {
     const client2 = { requestPermission: () => ({ outcome: { outcome: "cancelled" } }), sessionUpdate: () => void 0 };
     const connection = new ClientSideConnection(() => client2, childStream(child));
     try {
-      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.2.0" } });
+      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.3.0" } });
       const session = await connection.newSession({ cwd: workspace, mcpServers: [] });
       result2.kimi.authenticated = true;
       result2.acp = { protocolVersion: initialized.protocolVersion, sessionCreated: Boolean(session.sessionId), capabilities: initialized.agentCapabilities };
@@ -35555,14 +35602,15 @@ var AcpRunner = class {
     } catch (error51) {
       throw new Error(`Delegated job refused: ${safeError(error51)}`, { cause: error51 });
     }
-    const home = await this.isolatedHome?.prepare(jobId);
-    const child = spawnAgent(this.command, this.commandArgs, input.workspace, home, guard?.env ?? {});
+    const home = await this.isolatedHome?.prepare(jobId, { trackUsage: Boolean(input.trackUsage) });
+    const child = spawnAgent(this.command, this.commandArgs, input.workspace, home, { ...delegateEnv(input), ...guard?.env ?? {} });
     let diagnostics = "";
     child.stderr.on("data", (chunk) => {
       diagnostics = `${diagnostics}${chunk.toString("utf8")}`.slice(-8192);
     });
     const tools = /* @__PURE__ */ new Map();
     const blockedActions = [];
+    const toolViolations = [];
     let finalMessage = "";
     let usage;
     const client2 = {
@@ -35573,6 +35621,12 @@ var AcpRunner = class {
         } else if (update.sessionUpdate === "tool_call") {
           tools.set(update.toolCallId, update);
           await callbacks.onProgress?.(`${update.kind ?? "tool"}: ${redact(update.title).slice(0, 180)}`);
+          const verdict = watchToolCall(update.title, input);
+          if (verdict.violation) {
+            toolViolations.push({ at: (/* @__PURE__ */ new Date()).toISOString(), tool: update.title, reason: verdict.reason, cancelled: verdict.cancel });
+            await callbacks.onProgress?.(`policy violation: ${verdict.reason}`);
+            if (verdict.cancel) void this.cancel(jobId);
+          }
         } else if (update.sessionUpdate === "tool_call_update") {
           tools.set(update.toolCallId, { ...tools.get(update.toolCallId) ?? {}, ...update });
         }
@@ -35616,7 +35670,7 @@ var AcpRunner = class {
       const initialized = await connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { plan: {} },
-        clientInfo: { name: "kimi-subagents", version: "0.2.0" }
+        clientInfo: { name: "kimi-subagents", version: "0.3.0" }
       });
       const session = await connection.newSession({ cwd: input.workspace, additionalDirectories: input.additionalRoots ?? [], mcpServers: [] });
       sessionId = session.sessionId;
@@ -35644,13 +35698,14 @@ var AcpRunner = class {
         usage,
         blockedActions,
         shellCommands,
+        toolViolations,
         diagnostics: diagnostics ? redact(diagnostics) : void 0,
         capabilities: initialized.agentCapabilities
       };
     } catch (error51) {
       if (this.cancelling.has(jobId)) {
         const shellCommands = await collectShellCommands(guard, blockedActions);
-        return { sessionId, stopReason: "cancelled", finalMessage: redact(finalMessage), usage, blockedActions, shellCommands, diagnostics: diagnostics ? redact(diagnostics) : void 0, capabilities: {} };
+        return { sessionId, stopReason: "cancelled", finalMessage: redact(finalMessage), usage, blockedActions, shellCommands, toolViolations, diagnostics: diagnostics ? redact(diagnostics) : void 0, capabilities: {} };
       }
       throw error51;
     } finally {
@@ -35683,7 +35738,7 @@ var AcpRunner = class {
 // src/git.ts
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import path2 from "node:path";
+import path3 from "node:path";
 function parseStatus(status) {
   return status.split(/\r?\n/).filter(Boolean).map((line) => ({
     status: line.slice(0, 2).trim() || "?",
@@ -35692,7 +35747,7 @@ function parseStatus(status) {
 }
 async function fingerprint(workspace, relative) {
   try {
-    const content = await readFile(path2.resolve(workspace, relative));
+    const content = await readFile(path3.resolve(workspace, relative));
     return createHash("sha256").update(content).digest("hex");
   } catch {
     return "[missing]";
@@ -35778,16 +35833,16 @@ async function workspacePatch(workspace, baselineCommit) {
 [patch truncated at 256 KiB]` : patch;
 }
 function normalizeRelative(workspace, target) {
-  const relative = path2.relative(path2.resolve(workspace), path2.resolve(target));
+  const relative = path3.relative(path3.resolve(workspace), path3.resolve(target));
   if (!relative || relative === ".") return ".";
-  if (relative.startsWith("..") || path2.isAbsolute(relative)) throw new Error("Path escapes workspace");
+  if (relative.startsWith("..") || path3.isAbsolute(relative)) throw new Error("Path escapes workspace");
   return relative.replaceAll("\\", "/");
 }
 
 // src/locks.ts
 import { createHash as createHash2 } from "node:crypto";
 import { mkdir, open, readFile as readFile2, rm } from "node:fs/promises";
-import path3 from "node:path";
+import path4 from "node:path";
 function processExists(pid) {
   try {
     process.kill(pid, 0);
@@ -35832,12 +35887,12 @@ var LockManager = class {
     const payload = { pid: process.pid, jobId, createdAt: (/* @__PURE__ */ new Date()).toISOString() };
     let writerPath;
     if (writer) {
-      const digest = createHash2("sha256").update(path3.resolve(workspace).toLowerCase()).digest("hex");
-      writerPath = path3.join(this.directory, `writer-${digest}.lock`);
+      const digest = createHash2("sha256").update(path4.resolve(workspace).toLowerCase()).digest("hex");
+      writerPath = path4.join(this.directory, `writer-${digest}.lock`);
       if (!await this.tryCreate(writerPath, payload)) return void 0;
     }
     for (let index = 0; index < 2; index += 1) {
-      const slot = path3.join(this.directory, `slot-${index}.lock`);
+      const slot = path4.join(this.directory, `slot-${index}.lock`);
       if (await this.tryCreate(slot, payload)) return { slot, writer: writerPath };
     }
     if (writerPath) await rm(writerPath, { force: true });
@@ -35850,10 +35905,38 @@ var LockManager = class {
 
 // src/kimi-home.ts
 import { link, mkdir as mkdir2, readFile as readFile3, rm as rm2, stat, symlink, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path4 from "node:path";
+import os2 from "node:os";
+import path5 from "node:path";
+import { fileURLToPath } from "node:url";
+function delegateAgentsPath() {
+  return fileURLToPath(new URL("../assets/delegate-agents.md", import.meta.url));
+}
+async function usagePulseHooks(source) {
+  const root = path5.join(source, "plugins", "managed", "usage-pulse");
+  try {
+    await stat(path5.join(root, "hooks", "session_start.py"));
+  } catch {
+    return "";
+  }
+  const posix = root.replaceAll("\\", "/");
+  const events = [
+    ["SessionStart", "session_start.py", "startup|resume"],
+    ["UserPromptSubmit", "user_prompt_submit.py"],
+    ["PreToolUse", "pre_tool_use.py", ".*"],
+    ["PostToolUse", "post_tool_use.py", ".*"],
+    ["Stop", "stop.py"]
+  ];
+  return events.map(([event, script, matcher]) => [
+    "[[hooks]]",
+    `event = "${event}"`,
+    ...matcher ? [`matcher = "${matcher}"`] : [],
+    `command = "uv run --project \\"${posix}\\" python \\"${posix}/hooks/${script}\\" ${event} --provider kimi"`,
+    "timeout = 20",
+    ""
+  ].join("\n")).join("\n");
+}
 function defaultKimiHome() {
-  return path4.resolve(process.env.KIMI_CODE_HOME ?? path4.join(os.homedir(), ".kimi-code"));
+  return path5.resolve(process.env.KIMI_CODE_HOME ?? path5.join(os2.homedir(), ".kimi-code"));
 }
 async function exists(candidate) {
   try {
@@ -35915,26 +35998,31 @@ ${name ? `	name = ${name}
 ` : ""}`;
 }
 var IsolatedKimiHome = class {
-  constructor(base, source = defaultKimiHome()) {
+  constructor(base, source = defaultKimiHome(), agentsPath = delegateAgentsPath()) {
     this.base = base;
     this.source = source;
+    this.agentsPath = agentsPath;
   }
   base;
   source;
-  async prepare(id) {
+  agentsPath;
+  async prepare(id, options = {}) {
     if (!/^[a-z0-9-]+$/i.test(id)) throw new Error("Invalid isolated Kimi home ID");
-    const target = path4.join(this.base, id);
+    const target = path5.join(this.base, id);
     await rm2(target, { recursive: true, force: true });
     await mkdir2(target, { recursive: true });
     try {
-      const credentials = path4.join(this.source, "credentials");
+      const credentials = path5.join(this.source, "credentials");
       if (!await exists(credentials)) throw new Error("Kimi credentials directory unavailable for isolated ACP runtime");
-      await symlink(credentials, path4.join(target, "credentials"), process.platform === "win32" ? "junction" : "dir");
-      const device = path4.join(this.source, "device_id");
-      if (await exists(device)) await link(device, path4.join(target, "device_id"));
-      const config2 = safeConfig(await readFile3(path4.join(this.source, "config.toml"), "utf8"));
-      await writeFile(path4.join(target, "config.toml"), config2, { encoding: "utf8", mode: 384 });
-      await writeFile(path4.join(target, ".gitconfig"), await gitIdentity(), { encoding: "utf8", mode: 384 });
+      await symlink(credentials, path5.join(target, "credentials"), process.platform === "win32" ? "junction" : "dir");
+      const device = path5.join(this.source, "device_id");
+      if (await exists(device)) await link(device, path5.join(target, "device_id"));
+      const config2 = safeConfig(await readFile3(path5.join(this.source, "config.toml"), "utf8"));
+      const hooks = options.trackUsage ? await usagePulseHooks(this.source) : "";
+      await writeFile(path5.join(target, "config.toml"), hooks ? `${config2}
+${hooks}` : config2, { encoding: "utf8", mode: 384 });
+      await writeFile(path5.join(target, ".gitconfig"), await gitIdentity(), { encoding: "utf8", mode: 384 });
+      await writeFile(path5.join(target, "AGENTS.md"), await readFile3(this.agentsPath, "utf8"), { encoding: "utf8", mode: 384 });
       return target;
     } catch (error51) {
       await rm2(target, { recursive: true, force: true });
@@ -35942,9 +36030,9 @@ var IsolatedKimiHome = class {
     }
   }
   async dispose(id) {
-    const target = path4.resolve(this.base, id);
-    const base = path4.resolve(this.base);
-    if (path4.dirname(target) !== base) throw new Error("Refusing to remove unexpected isolated Kimi home");
+    const target = path5.resolve(this.base, id);
+    const base = path5.resolve(this.base);
+    if (path5.dirname(target) !== base) throw new Error("Refusing to remove unexpected isolated Kimi home");
     await rm2(target, { recursive: true, force: true });
   }
 };
@@ -35952,7 +36040,7 @@ var IsolatedKimiHome = class {
 // src/recovery.ts
 import { createHash as createHash3 } from "node:crypto";
 import { copyFile, lstat, mkdir as mkdir3, readFile as readFile4, readdir, rm as rm3, stat as stat2, writeFile as writeFile2 } from "node:fs/promises";
-import path5 from "node:path";
+import path6 from "node:path";
 var MAX_BYTES = 1024 ** 3;
 var MAX_FILES = 1e5;
 var DISPOSABLE = /* @__PURE__ */ new Set(["node_modules", ".venv", "venv", "dist", "build", "target", ".cache", ".pytest_cache", ".mypy_cache", ".ruff_cache", "coverage"]);
@@ -35967,8 +36055,8 @@ function disposable(relative) {
 async function walk(root, current = root) {
   const output = [];
   for (const entry of await readdir(current, { withFileTypes: true })) {
-    const full = path5.join(current, entry.name);
-    const relative = path5.relative(root, full);
+    const full = path6.join(current, entry.name);
+    const relative = path6.relative(root, full);
     if (disposable(relative) || entry.name === ".git") continue;
     if (entry.isDirectory()) output.push(...await walk(root, full));
     else if (entry.isFile()) output.push(relative);
@@ -35983,7 +36071,7 @@ function parseStatusPaths(raw) {
 }
 async function copyCandidate(workspace, recoveryRoot, relative, manifest) {
   if (disposable(relative)) return;
-  const source = path5.resolve(workspace, relative);
+  const source = path6.resolve(workspace, relative);
   normalizeRelative(workspace, source);
   let info;
   try {
@@ -35997,8 +36085,8 @@ async function copyCandidate(workspace, recoveryRoot, relative, manifest) {
   manifest.bytes += info.size;
   assertCheckpointLimits(manifest.files, manifest.bytes);
   const normalized = relative.replaceAll("\\", "/");
-  const destination = path5.join(recoveryRoot, "files", ...normalized.split("/"));
-  await mkdir3(path5.dirname(destination), { recursive: true });
+  const destination = path6.join(recoveryRoot, "files", ...normalized.split("/"));
+  await mkdir3(path6.dirname(destination), { recursive: true });
   await copyFile(source, destination);
   if (!manifest.copied.includes(normalized)) manifest.copied.push(normalized);
 }
@@ -36008,16 +36096,16 @@ var RecoveryManager = class {
   }
   recoveryBase;
   root(jobId) {
-    return path5.join(this.recoveryBase, jobId);
+    return path6.join(this.recoveryBase, jobId);
   }
   manifestPath(jobId) {
-    return path5.join(this.root(jobId), "manifest.json");
+    return path6.join(this.root(jobId), "manifest.json");
   }
   async create(jobId, workspace) {
     const root = this.root(jobId);
     await mkdir3(root, { recursive: true });
     const git = await isGitRepository(workspace);
-    const manifest = { jobId, workspace: path5.resolve(workspace), createdAt: (/* @__PURE__ */ new Date()).toISOString(), git, copied: [], absent: [], bytes: 0, files: 0 };
+    const manifest = { jobId, workspace: path6.resolve(workspace), createdAt: (/* @__PURE__ */ new Date()).toISOString(), git, copied: [], absent: [], bytes: 0, files: 0 };
     try {
       let candidates = [];
       if (git) {
@@ -36027,7 +36115,7 @@ var RecoveryManager = class {
         const ignored = await gitOutput(workspace, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"]);
         candidates.push(...ignored.split("\0").filter(Boolean));
         if (manifest.baselineHead) {
-          const bundle = path5.join(root, "repository.bundle");
+          const bundle = path6.join(root, "repository.bundle");
           await runFile("git", ["-C", workspace, "bundle", "create", bundle, "--all"], void 0, 12e4);
           const bundleSize = (await stat2(bundle)).size;
           manifest.bytes += bundleSize;
@@ -36058,7 +36146,7 @@ var RecoveryManager = class {
     }
     let touched = false;
     for (const target of targets) {
-      const absolute = path5.isAbsolute(target) ? target : path5.resolve(manifest.workspace, target);
+      const absolute = path6.isAbsolute(target) ? target : path6.resolve(manifest.workspace, target);
       let relative;
       try {
         relative = normalizeRelative(manifest.workspace, absolute);
@@ -36077,17 +36165,17 @@ var RecoveryManager = class {
     const manifest = await this.load(jobId);
     const restored = [];
     for (const requested of paths) {
-      const target = path5.resolve(manifest.workspace, requested);
+      const target = path6.resolve(manifest.workspace, requested);
       const relative = normalizeRelative(manifest.workspace, target);
-      const stored = path5.join(this.root(jobId), "files", ...relative.split("/"));
+      const stored = path6.join(this.root(jobId), "files", ...relative.split("/"));
       if (manifest.copied.includes(relative)) {
-        await mkdir3(path5.dirname(target), { recursive: true });
+        await mkdir3(path6.dirname(target), { recursive: true });
         await copyFile(stored, target);
       } else if (manifest.git && manifest.baselineHead) {
         const spec = `${manifest.baselineHead}:${relative.replaceAll("\\", "/")}`;
         try {
           const { stdout } = await runFile("git", ["-C", manifest.workspace, "show", spec], void 0, 6e4);
-          await mkdir3(path5.dirname(target), { recursive: true });
+          await mkdir3(path6.dirname(target), { recursive: true });
           await writeFile2(target, stdout, "utf8");
         } catch {
           throw new Error(`Path was not checkpointed: ${relative}`);
@@ -36107,8 +36195,8 @@ var RecoveryManager = class {
 // src/shell-guard.ts
 import { access, mkdir as mkdir4, readFile as readFile5, rm as rm4, writeFile as writeFile3 } from "node:fs/promises";
 import { constants } from "node:fs";
-import path6 from "node:path";
-import { fileURLToPath } from "node:url";
+import path7 from "node:path";
+import { fileURLToPath as fileURLToPath2 } from "node:url";
 var WINDOWS_BASH_CANDIDATES = [
   "C:\\Program Files\\Git\\bin\\bash.exe",
   "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
@@ -36125,12 +36213,12 @@ function shellSingleQuote(value) {
 }
 function guardRoots(roots) {
   return [...new Set(roots.flatMap((root) => {
-    const resolved = path6.resolve(root);
+    const resolved = path7.resolve(root);
     return [posixRoot(resolved), resolved.replaceAll("\\", "/").toLowerCase()];
   }))];
 }
 function guardAssetPath() {
-  return fileURLToPath(new URL("../assets/shell-guard.sh", import.meta.url));
+  return fileURLToPath2(new URL("../assets/shell-guard.sh", import.meta.url));
 }
 function renderBootstrap(config2, guardPath, logPath) {
   return [
@@ -36187,12 +36275,12 @@ var ShellGuard = class {
     await access(this.assetPath, constants.R_OK).catch(() => {
       throw new Error(`Shell guard asset is missing at ${this.assetPath}; installation is incomplete`);
     });
-    const directory = path6.join(this.base, config2.jobId);
+    const directory = path7.join(this.base, config2.jobId);
     await rm4(directory, { recursive: true, force: true });
     await mkdir4(directory, { recursive: true });
-    const bootstrapPath = path6.join(directory, "bootstrap.sh");
-    const guardPath = path6.join(directory, "shell-guard.sh");
-    const logPath = path6.join(directory, "guard.log");
+    const bootstrapPath = path7.join(directory, "bootstrap.sh");
+    const guardPath = path7.join(directory, "shell-guard.sh");
+    const logPath = path7.join(directory, "guard.log");
     await writeFile3(guardPath, (await readFile5(this.assetPath, "utf8")).replaceAll("\r\n", "\n"), { encoding: "utf8", mode: 384 });
     await writeFile3(bootstrapPath, renderBootstrap(config2, guardPath, logPath), { encoding: "utf8", mode: 384 });
     await writeFile3(logPath, "", { encoding: "utf8", mode: 384 });
@@ -36219,13 +36307,13 @@ var ShellGuard = class {
 // src/storage.ts
 import { mkdir as mkdir5, readFile as readFile6, readdir as readdir2, rename, rm as rm5, stat as stat3, writeFile as writeFile4 } from "node:fs/promises";
 import { randomUUID as randomUUID2 } from "node:crypto";
-import os2 from "node:os";
-import path7 from "node:path";
+import os3 from "node:os";
+import path8 from "node:path";
 var RETENTION_MS = 7 * 24 * 60 * 60 * 1e3;
 function runtimeRoot() {
-  if (process.env.KIMI_SUBAGENTS_HOME) return path7.resolve(process.env.KIMI_SUBAGENTS_HOME);
-  const local = process.env.LOCALAPPDATA ?? path7.join(os2.homedir(), "AppData", "Local");
-  return path7.join(local, "kimi-subagents");
+  if (process.env.KIMI_SUBAGENTS_HOME) return path8.resolve(process.env.KIMI_SUBAGENTS_HOME);
+  const local = process.env.LOCALAPPDATA ?? path8.join(os3.homedir(), "AppData", "Local");
+  return path8.join(local, "kimi-subagents");
 }
 var RecordStore = class {
   root;
@@ -36235,16 +36323,16 @@ var RecordStore = class {
   writes = /* @__PURE__ */ new Map();
   constructor(root = runtimeRoot()) {
     this.root = root;
-    this.jobsDir = path7.join(root, "jobs");
-    this.recoveryDir = path7.join(root, "recovery");
-    this.locksDir = path7.join(root, "locks");
+    this.jobsDir = path8.join(root, "jobs");
+    this.recoveryDir = path8.join(root, "recovery");
+    this.locksDir = path8.join(root, "locks");
   }
   async initialize() {
     await Promise.all([this.jobsDir, this.recoveryDir, this.locksDir].map((dir) => mkdir5(dir, { recursive: true })));
   }
   recordPath(id) {
     if (!/^[a-f0-9-]{36}$/i.test(id)) throw new Error("Invalid job ID");
-    return path7.join(this.jobsDir, `${id}.json`);
+    return path8.join(this.jobsDir, `${id}.json`);
   }
   async saveNow(record2) {
     await this.initialize();
@@ -36309,14 +36397,14 @@ var RecordStore = class {
     for (const record2 of await this.list()) {
       if (now - Date.parse(record2.updatedAt) <= RETENTION_MS) continue;
       await rm5(this.recordPath(record2.id), { force: true });
-      await rm5(path7.join(this.recoveryDir, record2.id), { recursive: true, force: true });
+      await rm5(path8.join(this.recoveryDir, record2.id), { recursive: true, force: true });
       removed += 1;
     }
     return removed;
   }
   async recoveryExists(id) {
     try {
-      return (await stat3(path7.join(this.recoveryDir, id, "manifest.json"))).isFile();
+      return (await stat3(path8.join(this.recoveryDir, id, "manifest.json"))).isFile();
     } catch {
       return false;
     }
@@ -36354,8 +36442,8 @@ var JobManager = class {
       this.recovery,
       "kimi",
       ["acp"],
-      new IsolatedKimiHome(path8.join(store.root, "kimi-homes")),
-      new ShellGuard(path8.join(store.root, "guards"))
+      new IsolatedKimiHome(path9.join(store.root, "kimi-homes")),
+      new ShellGuard(path9.join(store.root, "guards"))
     );
     this.locks = new LockManager(store.locksDir);
   }
@@ -36374,14 +36462,14 @@ var JobManager = class {
     }
   }
   async validateInput(input) {
-    if (!path8.isAbsolute(input.workspace)) throw new Error("workspace must be an absolute path");
-    const workspace = path8.resolve(input.workspace);
+    if (!path9.isAbsolute(input.workspace)) throw new Error("workspace must be an absolute path");
+    const workspace = path9.resolve(input.workspace);
     if (!(await stat4(workspace)).isDirectory()) throw new Error("workspace must be an existing directory");
     await this.assertNoProjectMcp(workspace);
     const additionalRoots = [];
     for (const root of input.additionalRoots ?? []) {
-      if (!path8.isAbsolute(root)) throw new Error("Every additional root must be absolute");
-      const resolved = path8.resolve(root);
+      if (!path9.isAbsolute(root)) throw new Error("Every additional root must be absolute");
+      const resolved = path9.resolve(root);
       if (!(await stat4(resolved)).isDirectory()) throw new Error(`Additional root does not exist: ${resolved}`);
       await this.assertNoProjectMcp(resolved);
       additionalRoots.push(resolved);
@@ -36389,7 +36477,7 @@ var JobManager = class {
     return { ...input, workspace, additionalRoots };
   }
   async assertNoProjectMcp(root) {
-    const config2 = path8.join(root, ".kimi-code", "mcp.json");
+    const config2 = path9.join(root, ".kimi-code", "mcp.json");
     try {
       const parsed = JSON.parse(await readFile7(config2, "utf8"));
       const enabled = Object.entries(parsed.mcpServers ?? {}).filter(([, value]) => value.enabled !== false).map(([name]) => name);
@@ -36401,7 +36489,7 @@ var JobManager = class {
     }
   }
   async preflight(workspace = process.cwd()) {
-    const resolved = path8.resolve(workspace);
+    const resolved = path9.resolve(workspace);
     if (!(await stat4(resolved)).isDirectory()) throw new Error("Preflight workspace must be an existing directory");
     return this.runner.preflight(resolved);
   }
@@ -36422,6 +36510,9 @@ var JobManager = class {
       allowDirty: Boolean(input.allowDirty),
       allowCommit: Boolean(input.allowCommit),
       allowDelete: Boolean(input.allowDelete),
+      allowNetwork: Boolean(input.allowNetwork),
+      allowSubagents: Boolean(input.allowSubagents),
+      trackUsage: Boolean(input.trackUsage ?? process.env.KIMI_SUBAGENTS_USAGE_PULSE === "1"),
       model: input.model,
       effort: input.effort ?? DEFAULT_EFFORT[input.jobType],
       timeoutSeconds: input.timeoutSeconds,
@@ -36431,6 +36522,7 @@ var JobManager = class {
       retries: 0,
       blockedActions: [],
       shellCommands: [],
+      toolViolations: [],
       changedFiles: [],
       recoveryAvailable: false,
       acceptedRisk: "allow-unless-blocked"
@@ -36579,20 +36671,22 @@ ${task}`
       const latest = await this.store.get(jobId);
       const cancelled = latest?.status === "cancelled" || result2.stopReason === "cancelled";
       const emptyResult = !cancelled && !result2.finalMessage.trim();
+      const forbiddenTool = result2.toolViolations.find((violation) => violation.cancelled);
       await this.update(jobId, {
-        status: lastProgress.stalled ? "failed" : cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
+        status: lastProgress.stalled || forbiddenTool ? "failed" : cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
         stopReason: result2.stopReason,
         finalMessage: result2.finalMessage,
         diagnostics: result2.diagnostics,
         usage: result2.usage,
         blockedActions: result2.blockedActions,
         shellCommands: result2.shellCommands,
+        toolViolations: result2.toolViolations,
         changedFiles: diff.files,
         preExistingChangedFiles: diff.preExistingFiles,
         diffSummary: readOnlyViolation ? `READ-ONLY VIOLATION: ${diff.summary}` : diff.summary,
         diffPatch: input.jobType === "execute" ? patchOf(await workspacePatch(input.workspace, baselineCommit)) : void 0,
         resultingCommit: diff.head,
-        error: lastProgress.stalled ? `Job cancelled after ${stallSeconds}s without Kimi activity.` : readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy." : emptyResult ? "Kimi ACP returned no final message; result rejected." : void 0,
+        error: forbiddenTool ? `Job stopped by runtime policy: ${forbiddenTool.reason}` : lastProgress.stalled ? `Job cancelled after ${stallSeconds}s without Kimi activity.` : readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy." : emptyResult ? "Kimi ACP returned no final message; result rejected." : void 0,
         finishedAt: (/* @__PURE__ */ new Date()).toISOString(),
         progress: lastProgress.stalled ? "Stalled" : cancelled ? "Cancelled" : "Finished"
       });
@@ -36651,7 +36745,7 @@ ${task}`
 };
 
 // src/server.ts
-var SERVER_VERSION = "0.2.0";
+var SERVER_VERSION = "0.3.0";
 function result(value) {
   const structuredContent = { result: value };
   return { content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }], structuredContent };
@@ -36671,6 +36765,7 @@ function statusView(record2) {
     finishedAt: record2.finishedAt,
     blockedCount: record2.blockedActions.length,
     shellCommandCount: record2.shellCommands.length,
+    toolViolationCount: record2.toolViolations.length,
     recoveryAvailable: record2.recoveryAvailable,
     error: record2.error
   };
@@ -36721,6 +36816,10 @@ function createServer(manager = new JobManager()) {
       allowDirty: external_exports.boolean().optional(),
       allowCommit: external_exports.boolean().optional().describe("True only when delegated task explicitly requests a local commit."),
       allowDelete: external_exports.boolean().optional().describe("True only when the delegated task explicitly requires deleting files inside the granted roots."),
+      allowNetwork: external_exports.boolean().optional().describe("Permit Kimi's own FetchURL/WebSearch. Off by default: a network call otherwise stops the job as a policy violation."),
+      allowSubagents: external_exports.boolean().optional().describe("Permit nested Kimi agents. Off by default, in which case Agent and AgentSwarm fail immediately."),
+      trackUsage: external_exports.boolean().optional().describe("Record this job in the separately installed Usage Pulse plugin. Off unless requested or KIMI_SUBAGENTS_USAGE_PULSE=1."),
+      maxSteps: external_exports.number().int().min(1).max(1e3).optional().describe("Hard ceiling on Kimi loop steps per turn. Defaults to 200."),
       timeoutSeconds: external_exports.number().int().min(5).max(86400).optional().describe("No timeout when omitted."),
       stallSeconds: external_exports.number().int().min(60).max(7200).optional().describe("Cancel the job when Kimi reports no activity for this long. Defaults to 900."),
       model: external_exports.string().min(1).optional(),

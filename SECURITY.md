@@ -36,12 +36,33 @@ Commands issued by nested tooling (a build script started by `npm run build`) ar
 
 Every inspected command is written to a per-job log, surfaced as `shellCommands` in the job record, and each denial also appears in `blockedActions` with `source: "shell-guard"`.
 
+## Layer 3 — delegate runtime
+
+Kimi approves some of its own tools and never asks the client: `Read`, `Grep`, `Glob`, `ReadMediaFile`, `WebSearch`, `FetchURL`, `Agent`, `AgentSwarm`, `Skill`, `TodoList`, task tools, `CronList` and the goal tools. Those are handled before the session starts, by the environment the delegated process runs in. Verified against Kimi Code 0.29.2:
+
+| Capability | How it is turned off | Result |
+| --- | --- | --- |
+| `Agent`, `AgentSwarm` | `KIMI_SUBAGENT_TIMEOUT_MS=1` (raised only when a job sets `allowSubagents`) | the call fails with `Agent timed out after 1 ms` before any model work |
+| `CronCreate`, `CronDelete` | `KIMI_DISABLE_CRON=1` | the tool returns `Cron scheduling is disabled (KIMI_DISABLE_CRON=1)` |
+| `WebSearch` | isolated home carries no `[services.moonshot_search]` credentials | the tool returns `Moonshot search service is not configured` |
+| Background tasks | `KIMI_CODE_BACKGROUND_MAX_RUNNING_TASKS=2` | bounded; their shell commands still pass the guard |
+| Telemetry, auto-update | `KIMI_DISABLE_TELEMETRY=1`, `KIMI_CODE_NO_AUTO_UPDATE=1` | a job cannot phone home or change the binary mid-run |
+| Loop runaway | `KIMI_LOOP_MAX_STEPS_PER_TURN` (default 200, `maxSteps` overrides) | hard step ceiling |
+
+`FetchURL` is the exception: its fetcher falls back to a local direct HTTP request, so no config or environment setting removes it. Kimi's `[tools] disabled` config section exists but is ignored on the ACP path (it belongs to the v2 engine; verified by live test with and without `KIMI_CODE_EXPERIMENTAL_FLAG=1`). It is therefore handled in two other ways:
+
+1. The runtime writes its own `AGENTS.md` into the isolated home, which forbids `FetchURL`, `WebSearch`, nested agents, cron and goals. It outranks any `AGENTS.md` inside the workspace, and live tests confirm Kimi follows it even when the workspace file says the opposite.
+2. Every `tool_call` notification is watched. An unauthorised `FetchURL` or `WebSearch` is recorded as a `toolViolation` and the job is cancelled and marked failed. `allowNetwork` turns that into a permitted capability for one job.
+
+That is detection plus termination, not prevention: a single request may leave the machine before the cancel lands. Do not put secrets in task text, and treat `allowNetwork: false` as "the job must not need the network", not as an airtight egress block.
+
 ## What the design does not cover
 
-- Kimi auto-approves several tools without asking the client at all: `Read`, `Grep`, `Glob`, `ReadMediaFile`, `WebSearch`, `FetchURL`, `Agent`, `AgentSwarm`, `Skill`, `TodoList`, task tools, `CronList` and goal tools. In particular **`FetchURL` is an outbound channel this plugin cannot intercept**, and subagent spawning cannot be blocked (nested subagent *shell* commands do pass through both layers).
+- Sandboxing. This is a deliberate product decision: the plugin installs and runs with one click on Windows, with no container, VM or WSL layer. Everything runs as the same user as Codex or Claude Code.
 - A same-user process can, in principle, defeat pattern matching with encoding, indirection or an unlisted interpreter. The guard raises cost; it is not a boundary.
 - Files inside granted roots can be overwritten by allowed commands; recovery checkpoints, not prevention, cover that case.
 - Reads of files outside the granted roots via the shell are permitted (recorded, not blocked) so that toolchains keep working.
+- Kimi's ACP `PromptResponse` carries no token usage in 0.29.2, so the plugin cannot report per-job cost. Opt into the separately installed Usage Pulse plugin (`trackUsage`) to get local counters instead.
 
 The main agent remains responsible for reviewing every diff or delegated commit and rerunning relevant checks. GitHub mutation and permanent deletion outside the granted roots stay main-agent-only.
 

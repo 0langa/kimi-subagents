@@ -1,6 +1,6 @@
 {
   "name": "kimi-subagents",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Delegate suitable Codex and Claude Code work to installed Kimi Code through a guarded ACP runtime.",
   "author": {
     "name": "0langa"

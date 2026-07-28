@@ -114,6 +114,9 @@ export class JobManager {
       allowDirty: Boolean(input.allowDirty),
       allowCommit: Boolean(input.allowCommit),
       allowDelete: Boolean(input.allowDelete),
+      allowNetwork: Boolean(input.allowNetwork),
+      allowSubagents: Boolean(input.allowSubagents),
+      trackUsage: Boolean(input.trackUsage ?? process.env.KIMI_SUBAGENTS_USAGE_PULSE === "1"),
       model: input.model,
       effort: input.effort ?? DEFAULT_EFFORT[input.jobType],
       timeoutSeconds: input.timeoutSeconds,
@@ -123,6 +126,7 @@ export class JobManager {
       retries: 0,
       blockedActions: [],
       shellCommands: [],
+      toolViolations: [],
       changedFiles: [],
       recoveryAvailable: false,
       acceptedRisk: "allow-unless-blocked"
@@ -270,22 +274,26 @@ export class JobManager {
       const latest = await this.store.get(jobId);
       const cancelled = latest?.status === "cancelled" || result.stopReason === "cancelled";
       const emptyResult = !cancelled && !result.finalMessage.trim();
+      const forbiddenTool = result.toolViolations.find((violation) => violation.cancelled);
       await this.update(jobId, {
-        status: lastProgress.stalled ? "failed" : cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
+        status: lastProgress.stalled || forbiddenTool ? "failed" : cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
         stopReason: result.stopReason,
         finalMessage: result.finalMessage,
         diagnostics: result.diagnostics,
         usage: result.usage,
         blockedActions: result.blockedActions,
         shellCommands: result.shellCommands,
+        toolViolations: result.toolViolations,
         changedFiles: diff.files,
         preExistingChangedFiles: diff.preExistingFiles,
         diffSummary: readOnlyViolation ? `READ-ONLY VIOLATION: ${diff.summary}` : diff.summary,
         diffPatch: input.jobType === "execute" ? patchOf(await workspacePatch(input.workspace, baselineCommit)) : undefined,
         resultingCommit: diff.head,
-        error: lastProgress.stalled
-          ? `Job cancelled after ${stallSeconds}s without Kimi activity.`
-          : readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy."
+        error: forbiddenTool
+          ? `Job stopped by runtime policy: ${forbiddenTool.reason}`
+          : lastProgress.stalled
+            ? `Job cancelled after ${stallSeconds}s without Kimi activity.`
+            : readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy."
             : emptyResult ? "Kimi ACP returned no final message; result rejected." : undefined,
         finishedAt: new Date().toISOString(),
         progress: lastProgress.stalled ? "Stalled" : cancelled ? "Cancelled" : "Finished"

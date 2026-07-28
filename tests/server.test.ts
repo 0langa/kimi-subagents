@@ -17,6 +17,9 @@ const record: JobRecord = {
   allowDirty: false,
   allowCommit: false,
   allowDelete: false,
+  allowNetwork: false,
+  allowSubagents: false,
+  trackUsage: false,
   effort: "high",
   stallSeconds: 900,
   createdAt: now,
@@ -29,6 +32,7 @@ const record: JobRecord = {
     { at: now, decision: "allow", rule: "default", command: "npm test" },
     { at: now, decision: "deny", rule: "remote git mutation", command: "git push" }
   ],
+  toolViolations: [],
   changedFiles: [],
   recoveryAvailable: false,
   acceptedRisk: "allow-unless-blocked"

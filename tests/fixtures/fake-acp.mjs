@@ -55,6 +55,19 @@ const implementation = {
       while (!session.cancelled) await delay(25);
       return { stopReason: "cancelled" };
     }
+    if (process.env.FAKE_ACP_MODE === "network") {
+      // Kimi approves FetchURL itself: the client only ever sees the notification.
+      await client.notify(acp.methods.client.session.update, {
+        sessionId: params.sessionId,
+        update: { sessionUpdate: "tool_call", toolCallId: "tool-net", title: "FetchURL", kind: "fetch", status: "in_progress" }
+      });
+      await delay(200);
+      await client.notify(acp.methods.client.session.update, {
+        sessionId: params.sessionId,
+        update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "fetched" } }
+      });
+      return { stopReason: "end_turn" };
+    }
     const { kind, title, content } = payloadFor(process.env.FAKE_ACP_MODE ?? "execute");
     await client.notify(acp.methods.client.session.update, {
       sessionId: params.sessionId,

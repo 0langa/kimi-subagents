@@ -16,13 +16,14 @@ import {
   type Usage
 } from "@agentclientprotocol/sdk";
 
+import { delegateEnv, watchToolCall } from "./delegate-runtime.js";
 import { decidePermission, extractAction, selectPermission } from "./policy.js";
 import type { IsolatedKimiHome } from "./kimi-home.js";
 import { redact, safeError } from "./redaction.js";
 import type { RecoveryManager } from "./recovery.js";
 import { runFile, sanitizedChildEnv, terminateProcessTree } from "./process.js";
 import type { PreparedGuard, ShellGuard } from "./shell-guard.js";
-import { DEFAULT_EFFORT, type BlockedAction, type PreflightResult, type RunResult, type ShellCommandRecord, type StartJobInput } from "./types.js";
+import { DEFAULT_EFFORT, type BlockedAction, type PreflightResult, type RunResult, type ShellCommandRecord, type StartJobInput, type ToolViolation } from "./types.js";
 
 interface ActiveConnection { child: ChildProcessWithoutNullStreams; connection: ClientSideConnection; sessionId?: string }
 interface RunnerCallbacks { onSession?: (sessionId: string) => Promise<void>; onProgress?: (progress: string) => Promise<void> }
@@ -60,8 +61,14 @@ function promptFor(input: StartJobInput): string {
     "You are a delegated Kimi Code worker. Complete only the declared task inside granted roots.",
     "A shell guard inspects every command you run. Destructive Git, remote Git or GitHub mutation, credential access, alternate interpreters (powershell/cmd/wsl) and writes outside the granted roots are denied and exit with code 126.",
     "When a command is denied, do not look for a way around it: report the block and continue with the rest of the task.",
-    "You may use at most two nested agents. Finish with a concise summary, changed files, and checks run."
+    "Finish with a concise summary, changed files, and checks run."
   ];
+  common.push(input.allowNetwork
+    ? "Network access through FetchURL is explicitly allowed for this job."
+    : "No network access: FetchURL and WebSearch are forbidden and calling one cancels the job.");
+  common.push(input.allowSubagents
+    ? "Nested agents are explicitly allowed for this job; use at most two."
+    : "Nested agents are disabled: Agent and AgentSwarm fail immediately, so do the work yourself.");
   common.push(input.allowDelete
     ? "File deletion inside the granted roots is explicitly allowed for this job."
     : "File deletion was not delegated: do not delete files.");
@@ -147,7 +154,7 @@ export class AcpRunner {
     const client: Client = { requestPermission: () => ({ outcome: { outcome: "cancelled" } }), sessionUpdate: () => undefined };
     const connection = new ClientSideConnection(() => client, childStream(child));
     try {
-      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.2.0" } });
+      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.3.0" } });
       const session = await connection.newSession({ cwd: workspace, mcpServers: [] });
       result.kimi.authenticated = true;
       result.acp = { protocolVersion: initialized.protocolVersion, sessionCreated: Boolean(session.sessionId), capabilities: initialized.agentCapabilities };
@@ -178,12 +185,13 @@ export class AcpRunner {
     } catch (error) {
       throw new Error(`Delegated job refused: ${safeError(error)}`, { cause: error });
     }
-    const home = await this.isolatedHome?.prepare(jobId);
-    const child = spawnAgent(this.command, this.commandArgs, input.workspace, home, guard?.env ?? {});
+    const home = await this.isolatedHome?.prepare(jobId, { trackUsage: Boolean(input.trackUsage) });
+    const child = spawnAgent(this.command, this.commandArgs, input.workspace, home, { ...delegateEnv(input), ...(guard?.env ?? {}) });
     let diagnostics = "";
     child.stderr.on("data", (chunk: Buffer) => { diagnostics = `${diagnostics}${chunk.toString("utf8")}`.slice(-8192); });
     const tools = new Map<string, ToolCall | ToolCallUpdate>();
     const blockedActions: BlockedAction[] = [];
+    const toolViolations: ToolViolation[] = [];
     let finalMessage = "";
     let usage: Usage | undefined;
 
@@ -195,6 +203,12 @@ export class AcpRunner {
         } else if (update.sessionUpdate === "tool_call") {
           tools.set(update.toolCallId, update);
           await callbacks.onProgress?.(`${update.kind ?? "tool"}: ${redact(update.title).slice(0, 180)}`);
+          const verdict = watchToolCall(update.title, input);
+          if (verdict.violation) {
+            toolViolations.push({ at: new Date().toISOString(), tool: update.title, reason: verdict.reason, cancelled: verdict.cancel });
+            await callbacks.onProgress?.(`policy violation: ${verdict.reason}`);
+            if (verdict.cancel) void this.cancel(jobId);
+          }
         } else if (update.sessionUpdate === "tool_call_update") {
           tools.set(update.toolCallId, { ...(tools.get(update.toolCallId) ?? {}), ...update });
         }
@@ -238,7 +252,7 @@ export class AcpRunner {
       const initialized: InitializeResponse = await connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { plan: {} },
-        clientInfo: { name: "kimi-subagents", version: "0.2.0" }
+        clientInfo: { name: "kimi-subagents", version: "0.3.0" }
       });
       const session = await connection.newSession({ cwd: input.workspace, additionalDirectories: input.additionalRoots ?? [], mcpServers: [] });
       sessionId = session.sessionId;
@@ -265,13 +279,14 @@ export class AcpRunner {
         usage,
         blockedActions,
         shellCommands,
+        toolViolations,
         diagnostics: diagnostics ? redact(diagnostics) : undefined,
         capabilities: initialized.agentCapabilities
       };
     } catch (error) {
       if (this.cancelling.has(jobId)) {
         const shellCommands = await collectShellCommands(guard, blockedActions);
-        return { sessionId, stopReason: "cancelled", finalMessage: redact(finalMessage), usage, blockedActions, shellCommands, diagnostics: diagnostics ? redact(diagnostics) : undefined, capabilities: {} };
+        return { sessionId, stopReason: "cancelled", finalMessage: redact(finalMessage), usage, blockedActions, shellCommands, toolViolations, diagnostics: diagnostics ? redact(diagnostics) : undefined, capabilities: {} };
       }
       throw error;
     } finally {

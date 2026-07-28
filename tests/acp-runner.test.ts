@@ -95,6 +95,22 @@ describe("ACP runner", () => {
     expect(Array.isArray(result.shellCommands)).toBe(true);
   });
 
+  it("records and cancels an unauthorised network tool call", async () => {
+    process.env.FAKE_ACP_MODE = "network";
+    const { runner, workspace } = await setup();
+    const result = await runner.run("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", { task: "test", jobType: "analyze", workspace });
+    expect(result.toolViolations).toHaveLength(1);
+    expect(result.toolViolations[0]).toMatchObject({ tool: "FetchURL", cancelled: true });
+  });
+
+  it("permits a network tool call when the job delegated it", async () => {
+    process.env.FAKE_ACP_MODE = "network";
+    const { runner, workspace } = await setup();
+    const result = await runner.run("cccccccc-cccc-4ccc-8ccc-cccccccccccc", { task: "test", jobType: "analyze", workspace, allowNetwork: true });
+    expect(result.toolViolations).toEqual([]);
+    expect(result.finalMessage).toBe("fetched");
+  });
+
   it("cancels active session and process", async () => {
     process.env.FAKE_ACP_MODE = "delay";
     const { runner, workspace } = await setup();

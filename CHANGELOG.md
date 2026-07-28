@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.0
+
+Closes the three gaps 0.2.0 documented as open: self-approved Kimi tools, missing usage data, and an unclear sandbox stance.
+
+### Added
+
+- Delegate runtime: the environment of a delegated job now disables what Kimi approves for itself. `KIMI_SUBAGENT_TIMEOUT_MS=1` makes `Agent`/`AgentSwarm` fail instantly, `KIMI_DISABLE_CRON=1` disables cron, the isolated home carries no search credentials so `WebSearch` fails, background tasks are capped, telemetry and auto-update are off, and `KIMI_LOOP_MAX_STEPS_PER_TURN` bounds the loop.
+- Runtime `AGENTS.md` written into the isolated home (`assets/delegate-agents.md`). It forbids the network, nested agents, cron and goals, and outranks any `AGENTS.md` inside the workspace — verified live against a workspace file that instructs the opposite.
+- Tool-call watch: `FetchURL` and `WebSearch` cannot be removed from Kimi, so every self-approved tool call is inspected. An unauthorised network call is recorded as a `toolViolation` and cancels the job; subagent, cron and goal attempts are recorded.
+- Job flags `allowNetwork`, `allowSubagents`, `maxSteps`, and `trackUsage`.
+- Usage Pulse opt-in: with `trackUsage` (or `KIMI_SUBAGENTS_USAGE_PULSE=1`) the isolated home re-adds Usage Pulse's own hooks and `USAGE_PULSE_HOME` points at the real store, so delegated jobs appear in local usage counters.
+- Live coverage for each of the above, plus a live usage-pulse suite.
+
+### Changed
+
+- The delegated system prompt states the network and subagent policy of the job instead of the old "at most two nested agents" line.
+- SECURITY.md documents the three enforcement layers, records that Kimi's `[tools] disabled` config section does not apply to the ACP path, and states the no-sandbox posture as a deliberate product decision rather than an open gap.
+
+### Known limits
+
+- A cancelled network call may already have left the machine: this is detection plus termination, not egress prevention.
+- Kimi's ACP `PromptResponse` still reports no token usage, so per-job cost comes from Usage Pulse or nowhere.
+
 ## 0.2.0
 
 Delegation policy is now actually enforced. Live capture against Kimi Code 0.29.2 showed that an ACP permission request carries only the tool name and a description truncated at 50 characters — no `rawInput`, no `locations`, never the full shell command — so the previous policy allowed every shell command and denied every `Write`.

@@ -47,7 +47,9 @@ Codex can invoke `$kimi-subagents`. Claude Code exposes `/kimi-subagents:kimi-su
 - `kimi_result`: redacted result, usage, retries, changed files, capped unified diff, blocks, full shell command log, recovery
 - `kimi_restore`: selected checkpoint paths after exact explicit confirmation
 
-`kimi_start` gates risky operations behind explicit flags: `allowCommit` (local commit), `allowDelete` (file deletion inside granted roots), `allowDirty` (start from a dirty tree).
+`kimi_start` gates risky operations behind explicit flags: `allowCommit` (local commit), `allowDelete` (file deletion inside granted roots), `allowDirty` (start from a dirty tree), `allowNetwork` (Kimi's own `FetchURL`/`WebSearch`), `allowSubagents` (nested Kimi agents), `trackUsage` (record the job in the separately installed Usage Pulse plugin), `maxSteps` (loop ceiling).
+
+Kimi's ACP responses carry no token usage in 0.29.2, so the plugin reports none. `trackUsage: true` — or `KIMI_SUBAGENTS_USAGE_PULSE=1` for every job — re-adds Usage Pulse's own hooks to the delegated session and points them at your real `~/.usage-pulse` store.
 
 Maximum two concurrent jobs, one execute writer/workspace, two nested Kimi agents/job. No default timeout. One transient failure retries once.
 
@@ -89,7 +91,9 @@ Denied by default: permanent deletion, destructive Git, remote Git and GitHub CL
 
 Each ACP process receives an isolated temporary `KIMI_CODE_HOME` **and relocated `HOME`/`USERPROFILE`**: managed OAuth credentials are linked, safe provider/model metadata is copied without API keys, and host Kimi MCP servers, plugins, hooks, sessions, logs, host skill directories (`~/.agents/skills` and provider skill directories) and host credential files (`~/.npmrc`, `~/.ssh`) are not visible. Only Git identity is carried forward. A delegated job sees Kimi's three built-in skills and nothing else, on any machine. Enabled project-local `.kimi-code/mcp.json` servers cause refusal. Non-empty config API keys are unsupported.
 
-This is not a sandbox. `FetchURL`, `WebSearch`, `Agent` and `AgentSwarm` are auto-approved by Kimi itself and never reach the broker, so outbound reads and subagent spawning cannot be blocked — only the shell commands those subagents run are guarded. Same-user execution may still evade pattern controls through obfuscation. The main Codex/Claude agent must inspect the diff or commit range, rerun checks, and label output accepted, repaired or rejected. See [SECURITY.md](SECURITY.md) and [architecture](docs/architecture.md).
+Kimi approves some of its own tools without asking the client, so those are turned off before the session starts: nested agents (`KIMI_SUBAGENT_TIMEOUT_MS=1`, so `Agent`/`AgentSwarm` fail instantly), cron (`KIMI_DISABLE_CRON=1`), web search (no search credentials in the isolated home), telemetry and auto-update. `allowSubagents` re-enables nested agents for one job. `FetchURL` cannot be removed — its fetcher falls back to a local request — so the runtime forbids it in its own `AGENTS.md`, watches the tool-call stream, and cancels the job on the first unauthorised network call; `allowNetwork` permits it deliberately.
+
+This is not a sandbox, by choice: one-click install, no container, VM or WSL. Same-user execution may still evade pattern controls through obfuscation, and a cancelled network call may already have left the machine. The main Codex/Claude agent must inspect the diff or commit range, rerun checks, and label output accepted, repaired or rejected. See [SECURITY.md](SECURITY.md) and [architecture](docs/architecture.md).
 
 Kimi ACP `/goal` is omitted: live Kimi Code 0.29.2 returned `Unknown ACP command: /goal`.
 

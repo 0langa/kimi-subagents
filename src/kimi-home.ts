@@ -1,8 +1,43 @@
 import { link, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { runFile } from "./process.js";
+
+export interface HomeOptions { trackUsage?: boolean }
+
+export function delegateAgentsPath(): string {
+  return fileURLToPath(new URL("../assets/delegate-agents.md", import.meta.url));
+}
+
+// Usage Pulse is a separate plugin. A delegated job is invisible to it because
+// the isolated home carries no plugins or hooks, so opting in re-adds only that
+// plugin's own hook commands, pointed at the user's installed copy.
+export async function usagePulseHooks(source: string): Promise<string> {
+  const root = path.join(source, "plugins", "managed", "usage-pulse");
+  try {
+    await stat(path.join(root, "hooks", "session_start.py"));
+  } catch {
+    return "";
+  }
+  const posix = root.replaceAll("\\", "/");
+  const events: Array<[string, string, string?]> = [
+    ["SessionStart", "session_start.py", "startup|resume"],
+    ["UserPromptSubmit", "user_prompt_submit.py"],
+    ["PreToolUse", "pre_tool_use.py", ".*"],
+    ["PostToolUse", "post_tool_use.py", ".*"],
+    ["Stop", "stop.py"]
+  ];
+  return events.map(([event, script, matcher]) => [
+    "[[hooks]]",
+    `event = "${event}"`,
+    ...(matcher ? [`matcher = "${matcher}"`] : []),
+    `command = "uv run --project \\"${posix}\\" python \\"${posix}/hooks/${script}\\" ${event} --provider kimi"`,
+    "timeout = 20",
+    ""
+  ].join("\n")).join("\n");
+}
 
 function defaultKimiHome(): string {
   return path.resolve(process.env.KIMI_CODE_HOME ?? path.join(os.homedir(), ".kimi-code"));
@@ -69,10 +104,11 @@ export async function gitIdentity(): Promise<string> {
 export class IsolatedKimiHome {
   constructor(
     private readonly base: string,
-    private readonly source = defaultKimiHome()
+    private readonly source = defaultKimiHome(),
+    private readonly agentsPath = delegateAgentsPath()
   ) {}
 
-  async prepare(id: string): Promise<string> {
+  async prepare(id: string, options: HomeOptions = {}): Promise<string> {
     if (!/^[a-z0-9-]+$/i.test(id)) throw new Error("Invalid isolated Kimi home ID");
     const target = path.join(this.base, id);
     await rm(target, { recursive: true, force: true });
@@ -84,8 +120,10 @@ export class IsolatedKimiHome {
       const device = path.join(this.source, "device_id");
       if (await exists(device)) await link(device, path.join(target, "device_id"));
       const config = safeConfig(await readFile(path.join(this.source, "config.toml"), "utf8"));
-      await writeFile(path.join(target, "config.toml"), config, { encoding: "utf8", mode: 0o600 });
+      const hooks = options.trackUsage ? await usagePulseHooks(this.source) : "";
+      await writeFile(path.join(target, "config.toml"), hooks ? `${config}\n${hooks}` : config, { encoding: "utf8", mode: 0o600 });
       await writeFile(path.join(target, ".gitconfig"), await gitIdentity(), { encoding: "utf8", mode: 0o600 });
+      await writeFile(path.join(target, "AGENTS.md"), await readFile(this.agentsPath, "utf8"), { encoding: "utf8", mode: 0o600 });
       return target;
     } catch (error) {
       await rm(target, { recursive: true, force: true });

@@ -22,6 +22,10 @@ export interface StartJobInput {
   allowDirty?: boolean;
   allowCommit?: boolean;
   allowDelete?: boolean;
+  allowNetwork?: boolean;
+  allowSubagents?: boolean;
+  trackUsage?: boolean;
+  maxSteps?: number;
   timeoutSeconds?: number;
   stallSeconds?: number;
   model?: string;
@@ -51,6 +55,13 @@ export interface ShellCommandRecord {
   command: string;
 }
 
+export interface ToolViolation {
+  at: string;
+  tool: string;
+  reason: string;
+  cancelled: boolean;
+}
+
 export interface JobRecord {
   id: string;
   ownerPid: number;
@@ -64,6 +75,9 @@ export interface JobRecord {
   allowDirty: boolean;
   allowCommit: boolean;
   allowDelete: boolean;
+  allowNetwork: boolean;
+  allowSubagents: boolean;
+  trackUsage: boolean;
   model?: string;
   effort: JobEffort;
   timeoutSeconds?: number;
@@ -82,6 +96,7 @@ export interface JobRecord {
   usage?: Usage;
   blockedActions: BlockedAction[];
   shellCommands: ShellCommandRecord[];
+  toolViolations: ToolViolation[];
   changedFiles: ChangedFile[];
   preExistingChangedFiles?: ChangedFile[];
   diffSummary?: string;
@@ -107,6 +122,7 @@ export interface RunResult {
   usage?: Usage;
   blockedActions: BlockedAction[];
   shellCommands: ShellCommandRecord[];
+  toolViolations: ToolViolation[];
   diagnostics?: string;
   capabilities: unknown;
 }

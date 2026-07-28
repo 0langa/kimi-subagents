@@ -28,11 +28,14 @@ Job types:
 - `plan`: native ACP plan mode. File mutation and shell commands are denied.
 - `execute`: workspace edits, tests, builds, installs and local development commands.
 
-Execute flags, each requiring an explicit user request for the underlying action:
+Flags, each requiring an explicit user request for the underlying action:
 
 - `allowCommit`: the delegated task explicitly asks for a local commit.
 - `allowDelete`: the delegated task explicitly requires deleting files inside the granted roots.
 - `allowDirty`: the user accepts starting from a dirty Git tree.
+- `allowNetwork`: the task genuinely needs Kimi's own `FetchURL`/`WebSearch`. Without it, a network call cancels the job.
+- `allowSubagents`: the task genuinely needs nested Kimi agents. Without it, `Agent` and `AgentSwarm` fail instantly.
+- `trackUsage`: record the job in the separately installed Usage Pulse plugin.
 
 In `auto`, do not delegate when the task is small enough that delegation overhead dominates, depends heavily on unstated conversation context, or could cause high-impact damage. Count every `kimi_start` against the three-job budget, including retries launched as new jobs.
 
@@ -54,7 +57,9 @@ Every shell command in a delegated job passes a shell guard that sees the full c
 
 When a job reports blocks, decide deliberately: either the block was correct, or the task needs a flag such as `allowDelete`, or the work belongs to the main agent. Never rewrite a task to disguise a blocked operation.
 
-Kimi cannot be prevented from using `FetchURL`, `WebSearch` or spawning its own subagents; those calls never reach the broker. Treat delegated jobs as capable of outbound network reads and do not place secrets in task text.
+The delegated runtime also turns off what Kimi would otherwise approve for itself: nested agents and cron fail instantly, web search has no credentials, telemetry and auto-update are off. `FetchURL` cannot be removed from Kimi, so the runtime forbids it in its own `AGENTS.md` and cancels any job that calls it without `allowNetwork`. A cancelled call may still have left the machine: never put secrets in task text.
+
+Kimi reports no token usage over ACP, so `kimi_result` has no cost figures. If the user wants local usage numbers, pass `trackUsage: true` and read them with the Usage Pulse plugin.
 
 ## Protected operations
 

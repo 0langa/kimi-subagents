@@ -38,6 +38,7 @@ const success = (id: string): RunResult => ({
   finalMessage: "done",
   blockedActions: [],
   shellCommands: [],
+  toolViolations: [],
   capabilities: {}
 });
 
@@ -73,12 +74,13 @@ describe("job manager", () => {
       taskSummary: "stale",
       allowDirty: false,
       allowCommit: false,
-      allowDelete: false, effort: "high", stallSeconds: 900,
+      allowDelete: false, allowNetwork: false, allowSubagents: false, trackUsage: false, effort: "high", stallSeconds: 900,
       createdAt: now,
       updatedAt: now,
       retries: 0,
       blockedActions: [],
       shellCommands: [],
+      toolViolations: [],
       changedFiles: [],
       recoveryAvailable: false,
       acceptedRisk: "allow-unless-blocked"
