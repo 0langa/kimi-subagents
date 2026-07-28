@@ -14,6 +14,17 @@ export async function runFile(command: string, args: string[], cwd?: string, tim
   return { stdout: result.stdout, stderr: result.stderr };
 }
 
+// Some Git subcommands (diff --no-index, diff --exit-code) signal "there were
+// differences" with a non-zero exit while still writing the payload to stdout.
+export async function runFileCapture(command: string, args: string[], cwd?: string, timeout = 30_000): Promise<string> {
+  try {
+    return (await runFile(command, args, cwd, timeout)).stdout;
+  } catch (error) {
+    const failure = error as { stdout?: string };
+    return typeof failure.stdout === "string" ? failure.stdout : "";
+  }
+}
+
 export async function terminateProcessTree(pid: number): Promise<void> {
   if (process.platform === "win32") {
     await new Promise<void>((resolve) => {

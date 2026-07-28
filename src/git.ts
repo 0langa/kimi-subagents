@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { runFile } from "./process.js";
+import { runFile, runFileCapture } from "./process.js";
 import type { ChangedFile } from "./types.js";
 
 export interface WorkingTreeEntry extends ChangedFile { fingerprint: string }
@@ -109,7 +109,9 @@ export async function workspacePatch(workspace: string, baselineCommit?: string)
     sections.push(await gitOutput(workspace, ["diff", "HEAD"], 60_000));
     const untracked = (await gitOutput(workspace, ["ls-files", "--others", "--exclude-standard"])).split(/\r?\n/).filter(Boolean);
     for (const file of untracked.slice(0, 50)) {
-      sections.push(await gitOutput(workspace, ["diff", "--no-index", "--", "/dev/null", file], 60_000).catch(() => ""));
+      // `git diff --no-index` exits non-zero whenever it finds differences, which
+      // is the normal case here, so capture stdout rather than treating it as failure.
+      sections.push(await runFileCapture("git", ["-C", workspace, "diff", "--no-index", "--", "/dev/null", file], undefined, 60_000));
     }
   } catch {
     return undefined;

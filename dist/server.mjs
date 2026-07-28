@@ -35359,6 +35359,14 @@ async function runFile(command, args, cwd, timeout = 3e4) {
   });
   return { stdout: result2.stdout, stderr: result2.stderr };
 }
+async function runFileCapture(command, args, cwd, timeout = 3e4) {
+  try {
+    return (await runFile(command, args, cwd, timeout)).stdout;
+  } catch (error51) {
+    const failure2 = error51;
+    return typeof failure2.stdout === "string" ? failure2.stdout : "";
+  }
+}
 async function terminateProcessTree(pid) {
   if (process.platform === "win32") {
     await new Promise((resolve) => {
@@ -35759,7 +35767,7 @@ async function workspacePatch(workspace, baselineCommit) {
     sections.push(await gitOutput(workspace, ["diff", "HEAD"], 6e4));
     const untracked = (await gitOutput(workspace, ["ls-files", "--others", "--exclude-standard"])).split(/\r?\n/).filter(Boolean);
     for (const file2 of untracked.slice(0, 50)) {
-      sections.push(await gitOutput(workspace, ["diff", "--no-index", "--", "/dev/null", file2], 6e4).catch(() => ""));
+      sections.push(await runFileCapture("git", ["-C", workspace, "diff", "--no-index", "--", "/dev/null", file2], void 0, 6e4));
     }
   } catch {
     return void 0;

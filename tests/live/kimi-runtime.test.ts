@@ -105,6 +105,27 @@ describe("live Kimi runtime", () => {
     expect(record.finalMessage ?? "").not.toMatch(/mcp__[a-z]/i);
   });
 
+  it("continues work through a follow-up job", async () => {
+    const started = await manager.start({
+      jobType: "execute",
+      workspace,
+      allowDirty: true,
+      task: "Create a file named followup.txt in the workspace containing exactly one line: step one. Then stop."
+    });
+    const first = await waitForTerminal(started.id);
+    expect(first.status).toBe("completed");
+    expect(await readFile(path.join(workspace, "followup.txt"), "utf8")).toContain("step one");
+
+    const child = await manager.followUp(started.id, "Append a second line to followup.txt containing exactly: step two.");
+    const second = await waitForTerminal(child.id);
+    expect(second.status).toBe("completed");
+    expect(second.parentJobId).toBe(started.id);
+    const content = await readFile(path.join(workspace, "followup.txt"), "utf8");
+    expect(content).toContain("step one");
+    expect(content).toContain("step two");
+    expect(second.diffPatch ?? "").toContain("followup.txt");
+  });
+
   it("exposes only built-in skills to the delegated session", async () => {
     const started = await manager.start({
       jobType: "analyze",
