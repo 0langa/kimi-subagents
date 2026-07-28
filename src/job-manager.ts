@@ -110,6 +110,7 @@ export class JobManager {
       additionalRoots: input.additionalRoots ?? [],
       taskSummary: redact(input.task).slice(0, 1000),
       policyMode: input.policyMode,
+      parentJobId: input.parentJobId,
       allowDirty: Boolean(input.allowDirty),
       allowCommit: Boolean(input.allowCommit),
       allowDelete: Boolean(input.allowDelete),
@@ -130,6 +131,38 @@ export class JobManager {
     await this.store.save(record);
     this.schedulePump(0);
     return record;
+  }
+
+  // Kimi ACP sessions are never reused: each job gets a fresh isolated home, so a
+  // follow-up is a new job that carries a compact, redacted summary of its parent.
+  async followUp(parentJobId: string, task: string, overrides: Partial<StartJobInput> = {}): Promise<JobRecord> {
+    const parent = await this.get(parentJobId);
+    const changed = parent.changedFiles.map((file) => `${file.status} ${file.path}`).join("\n") || "none";
+    const blocked = parent.blockedActions.map((action) => `${action.reason}: ${action.title}`).join("\n") || "none";
+    const continuation = [
+      `CONTINUATION OF JOB ${parent.id} (${parent.jobType}, ${parent.status}).`,
+      `PREVIOUS TASK:\n${parent.taskSummary}`,
+      `PREVIOUS RESULT:\n${(parent.finalMessage ?? "none").slice(0, 4000)}`,
+      `FILES THE PREVIOUS JOB CHANGED:\n${changed}`,
+      `ACTIONS BLOCKED IN THE PREVIOUS JOB:\n${blocked}`,
+      "You do not share memory with that job. Re-read whatever you need before acting.",
+      `NEW INSTRUCTION:\n${task}`
+    ].join("\n\n");
+    return this.start({
+      task: continuation,
+      jobType: overrides.jobType ?? parent.jobType,
+      workspace: overrides.workspace ?? parent.workspace,
+      additionalRoots: overrides.additionalRoots ?? parent.additionalRoots,
+      allowDirty: overrides.allowDirty ?? true,
+      allowCommit: overrides.allowCommit ?? parent.allowCommit,
+      allowDelete: overrides.allowDelete ?? parent.allowDelete,
+      model: overrides.model ?? parent.model,
+      effort: overrides.effort ?? parent.effort,
+      timeoutSeconds: overrides.timeoutSeconds ?? parent.timeoutSeconds,
+      stallSeconds: overrides.stallSeconds ?? parent.stallSeconds,
+      policyMode: overrides.policyMode ?? parent.policyMode,
+      parentJobId: parent.id
+    });
   }
 
   private schedulePump(delay = 250): void {

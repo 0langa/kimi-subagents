@@ -70,10 +70,21 @@ describe("provider UX contract", () => {
     }
   });
 
+  it("refuses to pin a catalog to a commit that is not published", async () => {
+    const local = await mkdtemp(path.join(os.tmpdir(), "kimi-catalog-unpublished-"));
+    roots.push(local);
+    const head = (await execFileAsync("git", ["rev-parse", "HEAD"], { encoding: "utf8" })).stdout.trim();
+    const published = (await execFileAsync("git", ["rev-parse", "origin/main"], { encoding: "utf8" })).stdout.trim();
+    if (head === published) return;
+    await expect(execFileAsync(process.execPath, ["scripts/create-dev-catalog.mjs", head], {
+      env: { ...process.env, LOCALAPPDATA: local }
+    })).rejects.toThrow();
+  });
+
   it("generates both exact-SHA local catalogs outside repository", async () => {
     const local = await mkdtemp(path.join(os.tmpdir(), "kimi-catalog-"));
     roots.push(local);
-    const sha = (await execFileAsync("git", ["rev-parse", "HEAD"], { encoding: "utf8" })).stdout.trim();
+    const sha = (await execFileAsync("git", ["rev-parse", "origin/main"], { encoding: "utf8" })).stdout.trim();
     await execFileAsync(process.execPath, ["scripts/create-dev-catalog.mjs", sha], { env: { ...process.env, LOCALAPPDATA: local } });
     const root = path.join(local, "kimi-subagents", "dev-marketplace");
     const codex = await json<{ name: string; plugins: Array<{ source: { sha: string } }> }>(path.join(root, ".agents", "plugins", "marketplace.json"));

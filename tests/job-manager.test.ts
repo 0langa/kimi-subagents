@@ -118,6 +118,26 @@ describe("job manager", () => {
     }
   });
 
+  it("carries parent context into a follow-up job", async () => {
+    const { workspace, manager } = await fixture();
+    const tasks: string[] = [];
+    manager.runner.run = async (id, input) => {
+      tasks.push(input.task);
+      return success(id);
+    };
+    const parent = await manager.start({ task: "write the parser", jobType: "execute", workspace, allowDelete: true });
+    await waitFor(manager, parent.id, (candidate) => candidate.status === "completed");
+    const child = await manager.followUp(parent.id, "the parser test fails on empty input; fix it");
+    const finished = await waitFor(manager, child.id, (candidate) => candidate.status === "completed");
+
+    expect(finished.parentJobId).toBe(parent.id);
+    expect(finished.allowDelete).toBe(true);
+    expect(finished.jobType).toBe("execute");
+    expect(tasks[1]).toContain(`CONTINUATION OF JOB ${parent.id}`);
+    expect(tasks[1]).toContain("write the parser");
+    expect(tasks[1]).toContain("the parser test fails on empty input");
+  });
+
   it("refuses enabled project-local Kimi MCP servers", async () => {
     const { workspace, manager } = await fixture();
     await mkdir(path.join(workspace, ".kimi-code"), { recursive: true });

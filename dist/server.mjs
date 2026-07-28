@@ -36400,6 +36400,7 @@ var JobManager = class {
       additionalRoots: input.additionalRoots ?? [],
       taskSummary: redact(input.task).slice(0, 1e3),
       policyMode: input.policyMode,
+      parentJobId: input.parentJobId,
       allowDirty: Boolean(input.allowDirty),
       allowCommit: Boolean(input.allowCommit),
       allowDelete: Boolean(input.allowDelete),
@@ -36420,6 +36421,42 @@ var JobManager = class {
     await this.store.save(record2);
     this.schedulePump(0);
     return record2;
+  }
+  // Kimi ACP sessions are never reused: each job gets a fresh isolated home, so a
+  // follow-up is a new job that carries a compact, redacted summary of its parent.
+  async followUp(parentJobId, task, overrides = {}) {
+    const parent = await this.get(parentJobId);
+    const changed = parent.changedFiles.map((file2) => `${file2.status} ${file2.path}`).join("\n") || "none";
+    const blocked = parent.blockedActions.map((action) => `${action.reason}: ${action.title}`).join("\n") || "none";
+    const continuation = [
+      `CONTINUATION OF JOB ${parent.id} (${parent.jobType}, ${parent.status}).`,
+      `PREVIOUS TASK:
+${parent.taskSummary}`,
+      `PREVIOUS RESULT:
+${(parent.finalMessage ?? "none").slice(0, 4e3)}`,
+      `FILES THE PREVIOUS JOB CHANGED:
+${changed}`,
+      `ACTIONS BLOCKED IN THE PREVIOUS JOB:
+${blocked}`,
+      "You do not share memory with that job. Re-read whatever you need before acting.",
+      `NEW INSTRUCTION:
+${task}`
+    ].join("\n\n");
+    return this.start({
+      task: continuation,
+      jobType: overrides.jobType ?? parent.jobType,
+      workspace: overrides.workspace ?? parent.workspace,
+      additionalRoots: overrides.additionalRoots ?? parent.additionalRoots,
+      allowDirty: overrides.allowDirty ?? true,
+      allowCommit: overrides.allowCommit ?? parent.allowCommit,
+      allowDelete: overrides.allowDelete ?? parent.allowDelete,
+      model: overrides.model ?? parent.model,
+      effort: overrides.effort ?? parent.effort,
+      timeoutSeconds: overrides.timeoutSeconds ?? parent.timeoutSeconds,
+      stallSeconds: overrides.stallSeconds ?? parent.stallSeconds,
+      policyMode: overrides.policyMode ?? parent.policyMode,
+      parentJobId: parent.id
+    });
   }
   schedulePump(delay = 250) {
     if (this.pumpTimer || this.pumping) return;
@@ -36620,6 +36657,27 @@ function statusView(record2) {
     error: record2.error
   };
 }
+function clip(value, maxBytes) {
+  if (value === void 0) return void 0;
+  return value.length > maxBytes ? `${value.slice(0, maxBytes)}
+[truncated at ${maxBytes} characters]` : value;
+}
+function resultView(record2, include, maxBytes) {
+  const denied = record2.shellCommands.filter((event) => event.decision === "deny");
+  return {
+    ...record2,
+    finalMessage: include.includes("message") ? clip(record2.finalMessage, maxBytes) : clip(record2.finalMessage, 4e3),
+    diffPatch: include.includes("patch") ? clip(record2.diffPatch, maxBytes) : void 0,
+    shellCommands: include.includes("commands") ? record2.shellCommands : denied,
+    available: {
+      patch: Boolean(record2.diffPatch),
+      patchBytes: record2.diffPatch?.length ?? 0,
+      commands: record2.shellCommands.length,
+      deniedCommands: denied.length,
+      messageBytes: record2.finalMessage?.length ?? 0
+    }
+  };
+}
 function createServer(manager = new JobManager()) {
   const server = new McpServer({ name: "kimi-subagents", version: SERVER_VERSION });
   const outputSchema = { result: external_exports.unknown() };
@@ -36656,6 +36714,26 @@ function createServer(manager = new JobManager()) {
   }, async (input) => {
     try {
       return result(statusView(await manager.start(input)));
+    } catch (error51) {
+      return failure(error51);
+    }
+  });
+  server.registerTool("kimi_followup", {
+    description: "Start a follow-up job for a finished job: same workspace, roots and flags, plus a compact summary of the previous task, result, changed files and blocks. Kimi sessions are never reused, so the follow-up re-reads what it needs.",
+    inputSchema: {
+      jobId: external_exports.string().uuid().describe("The job to continue."),
+      task: external_exports.string().min(1).max(1e5).describe("The new instruction, for example which check failed and what to fix."),
+      jobType: external_exports.enum(["analyze", "plan", "execute"]).optional(),
+      allowCommit: external_exports.boolean().optional(),
+      allowDelete: external_exports.boolean().optional(),
+      effort: external_exports.enum(["low", "high", "max"]).optional(),
+      policyMode: external_exports.enum(["manual", "ask", "auto"]).optional()
+    },
+    outputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  }, async ({ jobId, task, ...overrides }) => {
+    try {
+      return result(statusView(await manager.followUp(jobId, task, overrides)));
     } catch (error51) {
       return failure(error51);
     }
@@ -36701,13 +36779,17 @@ function createServer(manager = new JobManager()) {
     }
   });
   server.registerTool("kimi_result", {
-    description: "Get structured redacted job result: summary, changed files, tests reported by Kimi, blocks, usage, retries, diff attribution, and recovery availability.",
-    inputSchema: { jobId: external_exports.string().uuid() },
+    description: "Get the redacted job result: summary, changed files, blocks, usage, retries, diff attribution and recovery availability. Large sections (unified diff, shell command log, full Kimi message) are omitted unless requested through include, so results stay cheap to read.",
+    inputSchema: {
+      jobId: external_exports.string().uuid(),
+      include: external_exports.array(external_exports.enum(["patch", "commands", "message"])).optional().describe("Extra sections to return. Request patch before accepting execute output."),
+      maxBytes: external_exports.number().int().min(1e3).max(4e5).default(6e4).describe("Cap for each requested section.")
+    },
     outputSchema,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-  }, async ({ jobId }) => {
+  }, async ({ jobId, include, maxBytes }) => {
     try {
-      return result(await manager.get(jobId));
+      return result(resultView(await manager.get(jobId), include ?? [], maxBytes));
     } catch (error51) {
       return failure(error51);
     }
@@ -36754,6 +36836,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
 export {
   SERVER_VERSION,
   createServer,
-  main
+  main,
+  resultView
 };
 //# sourceMappingURL=server.mjs.map

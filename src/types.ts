@@ -27,6 +27,7 @@ export interface StartJobInput {
   model?: string;
   effort?: JobEffort;
   policyMode?: "manual" | "ask" | "auto";
+  parentJobId?: string;
 }
 
 export interface BlockedAction {
@@ -59,6 +60,7 @@ export interface JobRecord {
   additionalRoots: string[];
   taskSummary: string;
   policyMode?: "manual" | "ask" | "auto";
+  parentJobId?: string;
   allowDirty: boolean;
   allowCommit: boolean;
   allowDelete: boolean;

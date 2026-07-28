@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { JobManager } from "./job-manager.js";
 import { safeError } from "./redaction.js";
-import type { StartJobInput } from "./types.js";
+import type { JobRecord, StartJobInput } from "./types.js";
 
 export const SERVER_VERSION = "0.2.0";
 
@@ -32,6 +32,31 @@ function statusView(record: Awaited<ReturnType<JobManager["get"]>>) {
     shellCommandCount: record.shellCommands.length,
     recoveryAvailable: record.recoveryAvailable,
     error: record.error
+  };
+}
+
+function clip(value: string | undefined, maxBytes: number): string | undefined {
+  if (value === undefined) return undefined;
+  return value.length > maxBytes ? `${value.slice(0, maxBytes)}\n[truncated at ${maxBytes} characters]` : value;
+}
+
+// Job records hold a full diff, the whole shell command log and up to 64 KiB of
+// Kimi output. Returning all of that on every call would flood the host model's
+// context, so heavy sections are opt-in.
+export function resultView(record: JobRecord, include: Array<"patch" | "commands" | "message">, maxBytes: number) {
+  const denied = record.shellCommands.filter((event) => event.decision === "deny");
+  return {
+    ...record,
+    finalMessage: include.includes("message") ? clip(record.finalMessage, maxBytes) : clip(record.finalMessage, 4_000),
+    diffPatch: include.includes("patch") ? clip(record.diffPatch, maxBytes) : undefined,
+    shellCommands: include.includes("commands") ? record.shellCommands : denied,
+    available: {
+      patch: Boolean(record.diffPatch),
+      patchBytes: record.diffPatch?.length ?? 0,
+      commands: record.shellCommands.length,
+      deniedCommands: denied.length,
+      messageBytes: record.finalMessage?.length ?? 0
+    }
   };
 }
 
@@ -70,6 +95,23 @@ export function createServer(manager = new JobManager()): { server: McpServer; m
     try { return result(statusView(await manager.start(input as StartJobInput))); } catch (error) { return failure(error); }
   });
 
+  server.registerTool("kimi_followup", {
+    description: "Start a follow-up job for a finished job: same workspace, roots and flags, plus a compact summary of the previous task, result, changed files and blocks. Kimi sessions are never reused, so the follow-up re-reads what it needs.",
+    inputSchema: {
+      jobId: z.string().uuid().describe("The job to continue."),
+      task: z.string().min(1).max(100_000).describe("The new instruction, for example which check failed and what to fix."),
+      jobType: z.enum(["analyze", "plan", "execute"]).optional(),
+      allowCommit: z.boolean().optional(),
+      allowDelete: z.boolean().optional(),
+      effort: z.enum(["low", "high", "max"]).optional(),
+      policyMode: z.enum(["manual", "ask", "auto"]).optional()
+    },
+    outputSchema,
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
+  }, async ({ jobId, task, ...overrides }) => {
+    try { return result(statusView(await manager.followUp(jobId, task, overrides as Partial<StartJobInput>))); } catch (error) { return failure(error); }
+  });
+
   server.registerTool("kimi_status", {
     description: "Get compact lifecycle state. Can wait server-side for terminal state to avoid costly host-model polling turns.",
     inputSchema: {
@@ -99,11 +141,16 @@ export function createServer(manager = new JobManager()): { server: McpServer; m
   });
 
   server.registerTool("kimi_result", {
-    description: "Get structured redacted job result: summary, changed files, tests reported by Kimi, blocks, usage, retries, diff attribution, and recovery availability.",
-    inputSchema: { jobId: z.string().uuid() }, outputSchema,
+    description: "Get the redacted job result: summary, changed files, blocks, usage, retries, diff attribution and recovery availability. Large sections (unified diff, shell command log, full Kimi message) are omitted unless requested through include, so results stay cheap to read.",
+    inputSchema: {
+      jobId: z.string().uuid(),
+      include: z.array(z.enum(["patch", "commands", "message"])).optional().describe("Extra sections to return. Request patch before accepting execute output."),
+      maxBytes: z.number().int().min(1_000).max(400_000).default(60_000).describe("Cap for each requested section.")
+    },
+    outputSchema,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-  }, async ({ jobId }) => {
-    try { return result(await manager.get(jobId)); } catch (error) { return failure(error); }
+  }, async ({ jobId, include, maxBytes }) => {
+    try { return result(resultView(await manager.get(jobId), include ?? [], maxBytes)); } catch (error) { return failure(error); }
   });
 
   server.registerTool("kimi_restore", {

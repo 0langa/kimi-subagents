@@ -11,7 +11,7 @@ for (const relative of required) {
   if (!existsSync(path.join(pluginRoot, relative))) throw new Error(`Installed plugin root is missing ${relative}`);
 }
 
-const expected = ["kimi_cancel", "kimi_list", "kimi_preflight", "kimi_restore", "kimi_result", "kimi_start", "kimi_status"];
+const expected = ["kimi_cancel", "kimi_followup", "kimi_list", "kimi_preflight", "kimi_restore", "kimi_result", "kimi_start", "kimi_status"];
 
 function launchSpec(manifestFile, provider) {
   const manifest = JSON.parse(readFileSync(path.join(pluginRoot, manifestFile), "utf8"));

@@ -42,8 +42,9 @@ Codex can invoke `$kimi-subagents`. Claude Code exposes `/kimi-subagents:kimi-su
 
 - `kimi_preflight`: versions, authentication/session creation, ACP capabilities
 - `kimi_start`: asynchronous `analyze`, native `plan`, or `execute` job
+- `kimi_followup`: continue a finished job with a new instruction; inherits workspace, roots and flags and carries a compact summary of the parent job
 - `kimi_status`, `kimi_list`, `kimi_cancel`: compact lifecycle control; status supports up to 55-second server-side terminal wait to avoid model-driven polling cost
-- `kimi_result`: redacted result, usage, retries, changed files, blocks, full shell command log, recovery
+- `kimi_result`: redacted result, usage, retries, changed files, capped unified diff, blocks, full shell command log, recovery
 - `kimi_restore`: selected checkpoint paths after exact explicit confirmation
 
 `kimi_start` gates risky operations behind explicit flags: `allowCommit` (local commit), `allowDelete` (file deletion inside granted roots), `allowDirty` (start from a dirty tree).

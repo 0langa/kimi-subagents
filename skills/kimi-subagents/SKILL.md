@@ -40,10 +40,11 @@ In `auto`, do not delegate when the task is small enough that delegation overhea
 
 1. Before the first job in a session, call `kimi_preflight` for the current workspace. If it fails, report the exact fix and do not launch.
 2. In ask mode, describe one batch and wait. In auto mode, emit one line: `Kimi: launching <job-type> job for <purpose>.`
-3. Call `kimi_start` with an absolute workspace, minimal extra roots, the current policy mode, and no timeout by default. Pass model or thinking only after an explicit user request.
+3. Call `kimi_start` with an absolute workspace, minimal extra roots, the current policy mode, and no timeout by default. Effort defaults deterministically (`low` for analyze, `high` for plan and execute); override `effort` or `model` only after an explicit user request. A job with no reported activity for 15 minutes is cancelled automatically; raise `stallSeconds` for genuinely long builds.
 4. Continue useful host work. Call `kimi_status` with `waitForTerminal=true` and `waitSeconds=55`; repeat only while it is still running. Never use shell sleep or rapid model-driven polling. Use `kimi_cancel` on user request or when the work becomes obsolete.
-5. Get `kimi_result`. Independently inspect the diff or the explicitly allowed commit range, rerun the relevant checks, and decide accepted, repaired or rejected.
-6. Report the verified summary, changed files, rerun checks, blocked actions, shell commands of interest, usage when available, and the job ID. Show the redacted Kimi final message only on request.
+5. Get `kimi_result`. It returns the summary, changed files and denied commands by default; pass `include: ["patch"]` to read the unified diff before accepting execute output, and `include: ["commands"]` when you need the full shell log. Rerun the relevant checks independently, then decide accepted, repaired or rejected.
+6. When the work is nearly right, call `kimi_followup` with the specific correction instead of writing a new task from scratch: it reuses the workspace, roots and flags and carries a summary of the parent job. Each follow-up counts against the auto-mode budget.
+7. Report the verified summary, changed files, rerun checks, blocked actions, shell commands of interest, usage when available, and the job ID. Show the redacted Kimi final message only on request.
 
 If one transient ACP failure retries automatically and still fails, ask before falling back to expensive Codex or Claude work.
 
