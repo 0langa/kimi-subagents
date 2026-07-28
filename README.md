@@ -105,6 +105,15 @@ npm run security:scan
 
 `npm test` is deterministic and never starts Kimi; its ACP fixtures are captured from live Kimi payloads. `npm run test:live` drives the installed Kimi binary through real jobs and asserts guard enforcement, skill isolation and MCP isolation. Run it after any change to the runtime, the guard or the isolation logic.
 
+After installing, verify the installed copy rather than the source tree:
+
+```powershell
+node scripts/smoke-installed-mcp.mjs <installed-plugin-root>
+node scripts/verify-installed-runtime.mjs <installed-plugin-root>
+```
+
+The first boots the MCP server through both the Claude and Codex launch specs. The second runs one guarded execute job end to end and fails unless the shipped shell guard blocks a destructive command hidden behind Kimi's preview truncation.
+
 Provider manifests come from `forge.yaml`. Run Forge compile and sync checks after surface changes. No release tag exists for v0.1.
 
 ## License
