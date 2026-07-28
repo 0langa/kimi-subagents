@@ -23,9 +23,18 @@ surfaces:
   mcp:
   - name: kimi-subagents
     transport: stdio
+    package: node:${CLAUDE_PLUGIN_ROOT}/dist/server.mjs
+    env: []
+    args: []
+    providers:
+    - claude
+  - name: kimi-subagents
+    transport: stdio
     package: node:dist/server.mjs
     env: []
     args: []
+    providers:
+    - codex
 install:
   claude: ~/.claude/plugins/kimi-subagents/
   codex: ~/.codex/plugins/kimi-subagents/

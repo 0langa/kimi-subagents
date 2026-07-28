@@ -19,3 +19,5 @@ used_by:
 ## Notes
 
 Installed Claude Code 2.1.199 help verified marketplace add, plugin install with user scope, and strict plugin validation on 2026-07-28.
+
+Claude Code plugin MCP paths must use `${CLAUDE_PLUGIN_ROOT}` in `command`, `args`, or `env`; host working directory is not plugin root. Verified against Claude Code 2.1.220 and official plugin/MCP references on 2026-07-28 after a relative `dist/server.mjs` launch failed outside the source repository.

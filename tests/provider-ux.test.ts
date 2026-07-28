@@ -11,6 +11,13 @@ const roots: string[] = [];
 afterEach(async () => { await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true }))); });
 
 describe("provider UX contract", () => {
+  it("anchors Claude MCP launch to plugin root without changing Codex launch", async () => {
+    const claude = JSON.parse(await readFile(".mcp.json", "utf8")) as { mcpServers: Record<string, { args: string[] }> };
+    const codex = JSON.parse(await readFile(".codex-mcp.json", "utf8")) as { mcpServers: Record<string, { args: string[] }> };
+    expect(claude.mcpServers["kimi-subagents"]?.args).toEqual(["${CLAUDE_PLUGIN_ROOT}/dist/server.mjs"]);
+    expect(codex.mcpServers["kimi-subagents"]?.args).toEqual(["dist/server.mjs"]);
+  });
+
   it("documents every session mode and auto budget", async () => {
     const skill = await readFile("skills/kimi-subagents/SKILL.md", "utf8");
     for (const mode of ["off", "manual", "ask", "auto"]) expect(skill).toContain(`\`${mode}\``);

@@ -3,7 +3,7 @@
     "kimi-subagents": {
       "command": "node",
       "args": [
-        "dist/server.mjs"
+        "${CLAUDE_PLUGIN_ROOT}/dist/server.mjs"
       ],
       "cwd": "./"
     }
