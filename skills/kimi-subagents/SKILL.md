@@ -35,7 +35,7 @@ In `auto`, do not delegate when task is tiny enough that delegation overhead dom
 1. Before first job in session, call `kimi_preflight` for current workspace. If it fails, report exact fix; do not launch.
 2. In ask mode, describe one batch and wait. In auto mode, emit one-line notice: `Kimi: launching <job-type> job for <purpose>.`
 3. Call `kimi_start` with absolute workspace, minimal extra roots, current policy mode, and no timeout by default. Pass model/thinking only after explicit user request.
-4. Continue useful host work. Poll with `kimi_status`; use `kimi_cancel` on user request or obsolete work.
+4. Continue useful host work. Call `kimi_status` with `waitForTerminal=true` and `waitSeconds=55`; repeat only if still running. Never use shell sleep or rapid model-driven polling. Use `kimi_cancel` on user request or obsolete work.
 5. Get `kimi_result`. Independently inspect diff or explicitly allowed commit range, rerun relevant checks, and decide accepted/repaired/rejected.
 6. Report verified summary, changed files, rerun checks, blocks, usage when available, and job ID. Show redacted Kimi final message only on request.
 

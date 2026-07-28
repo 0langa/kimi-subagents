@@ -18,6 +18,21 @@ function failure(error: unknown) {
   return { isError: true, content: [{ type: "text" as const, text: safeError(error) }] };
 }
 
+function statusView(record: Awaited<ReturnType<JobManager["get"]>>) {
+  return {
+    id: record.id,
+    status: record.status,
+    jobType: record.jobType,
+    progress: record.progress,
+    updatedAt: record.updatedAt,
+    startedAt: record.startedAt,
+    finishedAt: record.finishedAt,
+    blockedCount: record.blockedActions.length,
+    recoveryAvailable: record.recoveryAvailable,
+    error: record.error
+  };
+}
+
 export function createServer(manager = new JobManager()): { server: McpServer; manager: JobManager } {
   const server = new McpServer({ name: "kimi-subagents", version: SERVER_VERSION });
   const outputSchema = { result: z.unknown() };
@@ -48,15 +63,19 @@ export function createServer(manager = new JobManager()): { server: McpServer; m
     outputSchema,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
   }, async (input) => {
-    try { return result(await manager.start(input as StartJobInput)); } catch (error) { return failure(error); }
+    try { return result(statusView(await manager.start(input as StartJobInput))); } catch (error) { return failure(error); }
   });
 
   server.registerTool("kimi_status", {
-    description: "Get current lifecycle state and latest redacted progress for one Kimi job.",
-    inputSchema: { jobId: z.string().uuid() }, outputSchema,
+    description: "Get compact lifecycle state. Can wait server-side for terminal state to avoid costly host-model polling turns.",
+    inputSchema: {
+      jobId: z.string().uuid(),
+      waitSeconds: z.number().int().min(0).max(55).default(0),
+      waitForTerminal: z.boolean().default(false)
+    }, outputSchema,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-  }, async ({ jobId }) => {
-    try { return result(await manager.get(jobId)); } catch (error) { return failure(error); }
+  }, async ({ jobId, waitSeconds, waitForTerminal }) => {
+    try { return result(statusView(await manager.wait(jobId, waitSeconds, waitForTerminal))); } catch (error) { return failure(error); }
   });
 
   server.registerTool("kimi_list", {
@@ -64,7 +83,7 @@ export function createServer(manager = new JobManager()): { server: McpServer; m
     inputSchema: { limit: z.number().int().min(1).max(100).default(20) }, outputSchema,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
   }, async ({ limit }) => {
-    try { return result(await manager.list(limit)); } catch (error) { return failure(error); }
+    try { return result((await manager.list(limit)).map(statusView)); } catch (error) { return failure(error); }
   });
 
   server.registerTool("kimi_cancel", {
@@ -72,7 +91,7 @@ export function createServer(manager = new JobManager()): { server: McpServer; m
     inputSchema: { jobId: z.string().uuid() }, outputSchema,
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
   }, async ({ jobId }) => {
-    try { return result(await manager.cancel(jobId)); } catch (error) { return failure(error); }
+    try { return result(statusView(await manager.cancel(jobId))); } catch (error) { return failure(error); }
   });
 
   server.registerTool("kimi_result", {

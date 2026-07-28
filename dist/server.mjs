@@ -36066,6 +36066,17 @@ var JobManager = class {
   async list(limit = 20) {
     return (await this.store.list()).slice(0, limit);
   }
+  async wait(jobId, waitSeconds, terminalOnly) {
+    const deadline = Date.now() + waitSeconds * 1e3;
+    const initial = await this.get(jobId);
+    while (Date.now() < deadline) {
+      const current = await this.get(jobId);
+      if (["completed", "failed", "blocked", "cancelled"].includes(current.status)) return current;
+      if (!terminalOnly && current.updatedAt !== initial.updatedAt) return current;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return this.get(jobId);
+  }
   async cancel(jobId) {
     const record2 = await this.get(jobId);
     if (["completed", "failed", "blocked", "cancelled"].includes(record2.status)) return record2;
@@ -36092,6 +36103,20 @@ function result(value) {
 }
 function failure(error51) {
   return { isError: true, content: [{ type: "text", text: safeError(error51) }] };
+}
+function statusView(record2) {
+  return {
+    id: record2.id,
+    status: record2.status,
+    jobType: record2.jobType,
+    progress: record2.progress,
+    updatedAt: record2.updatedAt,
+    startedAt: record2.startedAt,
+    finishedAt: record2.finishedAt,
+    blockedCount: record2.blockedActions.length,
+    recoveryAvailable: record2.recoveryAvailable,
+    error: record2.error
+  };
 }
 function createServer(manager = new JobManager()) {
   const server = new McpServer({ name: "kimi-subagents", version: SERVER_VERSION });
@@ -36126,19 +36151,23 @@ function createServer(manager = new JobManager()) {
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false }
   }, async (input) => {
     try {
-      return result(await manager.start(input));
+      return result(statusView(await manager.start(input)));
     } catch (error51) {
       return failure(error51);
     }
   });
   server.registerTool("kimi_status", {
-    description: "Get current lifecycle state and latest redacted progress for one Kimi job.",
-    inputSchema: { jobId: external_exports.string().uuid() },
+    description: "Get compact lifecycle state. Can wait server-side for terminal state to avoid costly host-model polling turns.",
+    inputSchema: {
+      jobId: external_exports.string().uuid(),
+      waitSeconds: external_exports.number().int().min(0).max(55).default(0),
+      waitForTerminal: external_exports.boolean().default(false)
+    },
     outputSchema,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
-  }, async ({ jobId }) => {
+  }, async ({ jobId, waitSeconds, waitForTerminal }) => {
     try {
-      return result(await manager.get(jobId));
+      return result(statusView(await manager.wait(jobId, waitSeconds, waitForTerminal)));
     } catch (error51) {
       return failure(error51);
     }
@@ -36150,7 +36179,7 @@ function createServer(manager = new JobManager()) {
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false }
   }, async ({ limit }) => {
     try {
-      return result(await manager.list(limit));
+      return result((await manager.list(limit)).map(statusView));
     } catch (error51) {
       return failure(error51);
     }
@@ -36162,7 +36191,7 @@ function createServer(manager = new JobManager()) {
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false }
   }, async ({ jobId }) => {
     try {
-      return result(await manager.cancel(jobId));
+      return result(statusView(await manager.cancel(jobId)));
     } catch (error51) {
       return failure(error51);
     }

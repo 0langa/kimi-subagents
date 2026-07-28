@@ -215,6 +215,18 @@ export class JobManager {
 
   async list(limit = 20): Promise<JobRecord[]> { return (await this.store.list()).slice(0, limit); }
 
+  async wait(jobId: string, waitSeconds: number, terminalOnly: boolean): Promise<JobRecord> {
+    const deadline = Date.now() + waitSeconds * 1000;
+    const initial = await this.get(jobId);
+    while (Date.now() < deadline) {
+      const current = await this.get(jobId);
+      if (["completed", "failed", "blocked", "cancelled"].includes(current.status)) return current;
+      if (!terminalOnly && current.updatedAt !== initial.updatedAt) return current;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return this.get(jobId);
+  }
+
   async cancel(jobId: string): Promise<JobRecord> {
     const record = await this.get(jobId);
     if (["completed", "failed", "blocked", "cancelled"].includes(record.status)) return record;
