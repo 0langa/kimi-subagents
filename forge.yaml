@@ -1,0 +1,59 @@
+name: kimi-subagents
+version: 0.1.0
+description: Delegate suitable Codex and Claude Code work to installed Kimi Code through
+  a guarded ACP runtime.
+providers:
+- claude
+- codex
+surfaces:
+  skills:
+  - name: kimi-subagents
+    path: skills/kimi-subagents/SKILL.md
+  commands:
+  - name: kimi-subagents
+    path: commands/kimi-subagents.md
+    providers:
+    - claude
+  agents: []
+  hooks: []
+  mcp:
+  - name: kimi-subagents
+    transport: stdio
+    package: node:dist/server.mjs
+    env: []
+    args: []
+install:
+  claude: ~/.claude/plugins/kimi-subagents/
+  codex: ~/.codex/plugins/kimi-subagents/
+settings_patches: {}
+marketplace: {}
+metadata:
+  author: 0langa
+  license: MIT
+  homepage: https://github.com/0langa/kimi-subagents
+  repository: https://github.com/0langa/kimi-subagents
+  keywords:
+  - kimi-code
+  - subagents
+  - delegation
+  - acp
+  - mcp
+  interface:
+    display_name: Kimi Subagents
+    short_description: Delegate suitable Codex and Claude Code work to installed Kimi
+      Code through a guarded ACP runtime.
+    long_description: Run asynchronous Kimi Code ACP jobs from Codex or Claude Code with
+      policy modes, protected operations, checkpoints, and main-agent verification.
+    developer_name: 0langa
+    category: Developer Tools
+    capabilities:
+    - Read
+    - Write
+    - Planning
+    default_prompt: Use kimi-subagents in manual mode for suitable work until I change mode.
+provider_extras:
+  claude: {}
+  codex: {}
+  kimi: {}
+options:
+  shared_mcp_file: false

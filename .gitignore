@@ -11,9 +11,18 @@ Thumbs.db
 
 # Common generated files
 node_modules/
-dist/
+dist/*
+!dist/server.mjs
+!dist/server.mjs.map
 build/
 .venv/
 __pycache__/
 *.py[cod]
 *.log
+
+.recall/
+.codex_memory/
+
+# Local runtime, installation, and test state
+.kimi-subagents-state/
+.test-output/

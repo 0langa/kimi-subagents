@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "kimi-subagents": {
+      "command": "node",
+      "args": [
+        "dist/server.mjs"
+      ],
+      "cwd": "./"
+    }
+  }
+}

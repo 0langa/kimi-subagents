@@ -1,0 +1,36 @@
+{
+  "name": "kimi-subagents",
+  "version": "0.1.0",
+  "description": "Delegate suitable Codex and Claude Code work to installed Kimi Code through a guarded ACP runtime.",
+  "author": {
+    "name": "0langa"
+  },
+  "homepage": "https://github.com/0langa/kimi-subagents",
+  "repository": "https://github.com/0langa/kimi-subagents",
+  "license": "MIT",
+  "keywords": [
+    "kimi-code",
+    "subagents",
+    "delegation",
+    "acp",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Kimi Subagents",
+    "shortDescription": "Delegate suitable Codex and Claude Code work to installed Kimi Code through a guarded ACP runtime.",
+    "longDescription": "Run asynchronous Kimi Code ACP jobs from Codex or Claude Code with policy modes, protected operations, checkpoints, and main-agent verification.",
+    "developerName": "0langa",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Planning"
+    ],
+    "websiteURL": "https://github.com/0langa/kimi-subagents",
+    "defaultPrompt": [
+      "Use kimi-subagents in manual mode for suitable work until I change mode."
+    ]
+  },
+  "mcpServers": "./.codex-mcp.json"
+}

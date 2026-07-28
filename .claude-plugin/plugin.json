@@ -1,0 +1,21 @@
+{
+  "name": "kimi-subagents",
+  "version": "0.1.0",
+  "description": "Delegate suitable Codex and Claude Code work to installed Kimi Code through a guarded ACP runtime.",
+  "author": {
+    "name": "0langa"
+  },
+  "homepage": "https://github.com/0langa/kimi-subagents",
+  "repository": "https://github.com/0langa/kimi-subagents",
+  "license": "MIT",
+  "keywords": [
+    "kimi-code",
+    "subagents",
+    "delegation",
+    "acp",
+    "mcp"
+  ],
+  "skills": "./skills",
+  "commands": "./commands",
+  "mcpServers": "./.mcp.json"
+}
