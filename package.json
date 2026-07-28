@@ -9,6 +9,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "dev:catalog": "node scripts/create-dev-catalog.mjs",
     "security:scan": "node scripts/security-scan.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

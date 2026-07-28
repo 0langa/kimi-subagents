@@ -14,6 +14,14 @@ surfaces:
     path: commands/kimi-subagents.md
     providers:
     - claude
+  - name: kimi-mode
+    path: commands/kimi-mode.md
+    providers:
+    - claude
+  - name: kimi-status
+    path: commands/kimi-status.md
+    providers:
+    - claude
   agents: []
   hooks: []
   mcp:

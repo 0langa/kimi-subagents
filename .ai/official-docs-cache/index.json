@@ -1,0 +1,33 @@
+{
+  "checked_at": "2026-07-28",
+  "records": [
+    {
+      "provider": "kimi-code",
+      "topic": "acp-runtime",
+      "path": "notes/kimi-code-acp-runtime.md",
+      "stability": "likely-changing",
+      "sources": ["https://www.kimi.com/code/docs/en/kimi-code-cli/reference/kimi-acp.html"]
+    },
+    {
+      "provider": "openai",
+      "topic": "codex-plugins",
+      "path": "notes/codex-plugins.md",
+      "stability": "likely-changing",
+      "sources": ["https://developers.openai.com/codex/plugins"]
+    },
+    {
+      "provider": "claude-code",
+      "topic": "plugins",
+      "path": "notes/claude-code-plugins.md",
+      "stability": "likely-changing",
+      "sources": ["https://code.claude.com/docs/en/plugins-reference"]
+    },
+    {
+      "provider": "acp",
+      "topic": "tool-permissions",
+      "path": "notes/acp-tool-permissions.md",
+      "stability": "likely-changing",
+      "sources": ["https://agentclientprotocol.com/protocol/v1/tool-calls"]
+    }
+  ]
+}
