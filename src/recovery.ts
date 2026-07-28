@@ -2,8 +2,6 @@ import { createHash } from "node:crypto";
 import { copyFile, lstat, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import type { ToolCall, ToolCallUpdate } from "@agentclientprotocol/sdk";
-
 import { gitHead, gitOutput, isGitRepository, normalizeRelative } from "./git.js";
 import { runFile } from "./process.js";
 
@@ -112,26 +110,20 @@ export class RecoveryManager {
     return JSON.parse(await readFile(this.manifestPath(jobId), "utf8")) as RecoveryManifest;
   }
 
-  private extractPaths(call: ToolCall | ToolCallUpdate): string[] {
-    const output = (call.locations ?? []).map((location) => location.path);
-    const scan = (value: unknown, key = ""): void => {
-      if (typeof value === "string" && /^(?:path|file|destination|source)$/i.test(key) && path.isAbsolute(value)) output.push(value);
-      else if (Array.isArray(value)) value.forEach((entry) => scan(entry, key));
-      else if (value && typeof value === "object") Object.entries(value).forEach(([child, entry]) => scan(entry, child));
-    };
-    scan(call.rawInput);
-    return [...new Set(output)];
-  }
-
-  async backupBeforeWrite(jobId: string, call: ToolCall | ToolCallUpdate): Promise<void> {
+  async backupBeforeWrite(jobId: string, targets: string[]): Promise<void> {
+    if (targets.length === 0) return;
     let manifest: RecoveryManifest;
     try { manifest = await this.load(jobId); } catch { return; }
-    for (const target of this.extractPaths(call)) {
-      const relative = normalizeRelative(manifest.workspace, target);
+    let touched = false;
+    for (const target of targets) {
+      const absolute = path.isAbsolute(target) ? target : path.resolve(manifest.workspace, target);
+      let relative: string;
+      try { relative = normalizeRelative(manifest.workspace, absolute); } catch { continue; }
       if (relative === "." || manifest.copied.includes(relative) || manifest.absent.includes(relative)) continue;
       await copyCandidate(manifest.workspace, this.root(jobId), relative, manifest);
+      touched = true;
     }
-    await writeFile(this.manifestPath(jobId), `${JSON.stringify(manifest, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+    if (touched) await writeFile(this.manifestPath(jobId), `${JSON.stringify(manifest, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
   }
 
   async restore(jobId: string, paths: string[], confirmation: string): Promise<string[]> {

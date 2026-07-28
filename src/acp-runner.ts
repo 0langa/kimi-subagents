@@ -16,12 +16,13 @@ import {
   type Usage
 } from "@agentclientprotocol/sdk";
 
-import { decideTool, selectPermission } from "./policy.js";
+import { decidePermission, extractAction, selectPermission } from "./policy.js";
 import type { IsolatedKimiHome } from "./kimi-home.js";
 import { redact, safeError } from "./redaction.js";
 import type { RecoveryManager } from "./recovery.js";
 import { runFile, sanitizedChildEnv, terminateProcessTree } from "./process.js";
-import type { BlockedAction, PreflightResult, RunResult, StartJobInput } from "./types.js";
+import type { PreparedGuard, ShellGuard } from "./shell-guard.js";
+import { DEFAULT_EFFORT, type BlockedAction, type PreflightResult, type RunResult, type ShellCommandRecord, type StartJobInput } from "./types.js";
 
 interface ActiveConnection { child: ChildProcessWithoutNullStreams; connection: ClientSideConnection; sessionId?: string }
 interface RunnerCallbacks { onSession?: (sessionId: string) => Promise<void>; onProgress?: (progress: string) => Promise<void> }
@@ -57,10 +58,13 @@ function waitForExit(child: ChildProcessWithoutNullStreams): Promise<number | nu
 function promptFor(input: StartJobInput): string {
   const common = [
     "You are a delegated Kimi Code worker. Complete only the declared task inside granted roots.",
-    "Never permanently delete files, run destructive Git, mutate GitHub/remotes, or expose credentials.",
-    "Do not use GitHub credentials or remote mutation commands. Report blocks instead.",
+    "A shell guard inspects every command you run. Destructive Git, remote Git or GitHub mutation, credential access, alternate interpreters (powershell/cmd/wsl) and writes outside the granted roots are denied and exit with code 126.",
+    "When a command is denied, do not look for a way around it: report the block and continue with the rest of the task.",
     "You may use at most two nested agents. Finish with a concise summary, changed files, and checks run."
   ];
+  common.push(input.allowDelete
+    ? "File deletion inside the granted roots is explicitly allowed for this job."
+    : "File deletion was not delegated: do not delete files.");
   if (input.jobType === "analyze") common.push("READ-ONLY ANALYZE JOB: read and search only. Do not edit files or execute commands.");
   if (input.jobType === "plan") common.push("PLAN JOB: use native ACP plan mode. Do not modify files.");
   if (input.jobType === "execute") {
@@ -72,10 +76,30 @@ function promptFor(input: StartJobInput): string {
   return common.join("\n\n");
 }
 
-function spawnAgent(command: string, args: string[], workspace: string, isolatedHome?: string): ChildProcessWithoutNullStreams {
+async function collectShellCommands(guard: PreparedGuard | undefined, blockedActions: BlockedAction[]): Promise<ShellCommandRecord[]> {
+  if (!guard) return [];
+  const events = await guard.read().catch(() => []);
+  const records = events.map((event) => ({ ...event, command: redact(event.command) }));
+  for (const denied of records.filter((event) => event.decision === "deny")) {
+    blockedActions.push({
+      toolCallId: `shell-guard:${denied.at}`,
+      title: denied.command.slice(0, 200),
+      kind: "execute",
+      reason: `${denied.rule} [shell-guard]`,
+      at: denied.at,
+      source: "shell-guard"
+    });
+  }
+  return records;
+}
+
+function spawnAgent(command: string, args: string[], workspace: string, isolatedHome?: string, extraEnv: Record<string, string> = {}): ChildProcessWithoutNullStreams {
   return spawn(command, args, {
     cwd: workspace,
-    env: sanitizedChildEnv(isolatedHome ? { KIMI_CODE_HOME: isolatedHome } : {}),
+    env: sanitizedChildEnv({
+      ...(isolatedHome ? { KIMI_CODE_HOME: isolatedHome, USERPROFILE: isolatedHome, HOME: isolatedHome } : {}),
+      ...extraEnv
+    }),
     shell: false,
     windowsHide: true,
     detached: process.platform !== "win32",
@@ -91,7 +115,8 @@ export class AcpRunner {
     private readonly recovery: RecoveryManager,
     private readonly command = "kimi",
     private readonly commandArgs = ["acp"],
-    private readonly isolatedHome?: IsolatedKimiHome
+    private readonly isolatedHome?: IsolatedKimiHome,
+    private readonly shellGuard?: ShellGuard
   ) {}
 
   async preflight(workspace: string): Promise<PreflightResult> {
@@ -122,7 +147,7 @@ export class AcpRunner {
     const client: Client = { requestPermission: () => ({ outcome: { outcome: "cancelled" } }), sessionUpdate: () => undefined };
     const connection = new ClientSideConnection(() => client, childStream(child));
     try {
-      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.1.1" } });
+      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.2.0" } });
       const session = await connection.newSession({ cwd: workspace, mcpServers: [] });
       result.kimi.authenticated = true;
       result.acp = { protocolVersion: initialized.protocolVersion, sessionCreated: Boolean(session.sessionId), capabilities: initialized.agentCapabilities };
@@ -140,11 +165,23 @@ export class AcpRunner {
   }
 
   async run(jobId: string, input: StartJobInput, callbacks: RunnerCallbacks = {}): Promise<RunResult> {
+    const roots = [input.workspace, ...(input.additionalRoots ?? [])];
+    let guard: PreparedGuard | undefined;
+    try {
+      guard = await this.shellGuard?.prepare({
+        jobId,
+        jobType: input.jobType,
+        roots,
+        allowCommit: Boolean(input.allowCommit),
+        allowDelete: Boolean(input.allowDelete)
+      });
+    } catch (error) {
+      throw new Error(`Delegated job refused: ${safeError(error)}`, { cause: error });
+    }
     const home = await this.isolatedHome?.prepare(jobId);
-    const child = spawnAgent(this.command, this.commandArgs, input.workspace, home);
+    const child = spawnAgent(this.command, this.commandArgs, input.workspace, home, guard?.env ?? {});
     let diagnostics = "";
     child.stderr.on("data", (chunk: Buffer) => { diagnostics = `${diagnostics}${chunk.toString("utf8")}`.slice(-8192); });
-    const roots = [input.workspace, ...(input.additionalRoots ?? [])];
     const tools = new Map<string, ToolCall | ToolCallUpdate>();
     const blockedActions: BlockedAction[] = [];
     let finalMessage = "";
@@ -163,13 +200,32 @@ export class AcpRunner {
         }
       },
       requestPermission: async (request: RequestPermissionRequest): Promise<RequestPermissionResponse> => {
-        const call = { ...(tools.get(request.toolCall.toolCallId) ?? {}), ...request.toolCall } as ToolCallUpdate;
-        const decision = decideTool(input.jobType, call, roots, Boolean(input.allowCommit));
-        if (decision.allow && input.jobType === "execute" && ["edit", "move", "delete", "execute"].includes(call.kind ?? "other")) {
-          await this.recovery.backupBeforeWrite(jobId, call);
+        const cached = tools.get(request.toolCall.toolCallId);
+        const call = { ...(cached ?? {}), ...request.toolCall } as ToolCallUpdate;
+        const decision = decidePermission({
+          jobType: input.jobType,
+          toolName: request.toolCall.title ?? call.title ?? "",
+          kind: cached?.kind ?? call.kind,
+          content: request.toolCall.content,
+          roots,
+          workspace: input.workspace,
+          allowCommit: Boolean(input.allowCommit),
+          allowDelete: Boolean(input.allowDelete)
+        });
+        if (decision.allow && input.jobType === "execute") {
+          const extracted = extractAction(request.toolCall.content);
+          const targets = [...extracted.diffPaths, ...(extracted.targetPath ? [extracted.targetPath] : [])];
+          await this.recovery.backupBeforeWrite(jobId, targets);
         }
         if (!decision.allow) {
-          blockedActions.push({ toolCallId: call.toolCallId, title: redact(call.title ?? "Unknown tool"), kind: call.kind, reason: decision.reason, at: new Date().toISOString() });
+          blockedActions.push({
+            toolCallId: call.toolCallId,
+            title: redact(call.title ?? "Unknown tool"),
+            kind: call.kind,
+            reason: `${decision.reason} [${decision.rule}]`,
+            at: new Date().toISOString(),
+            source: "acp-broker"
+          });
           await callbacks.onProgress?.(`blocked: ${decision.reason}`);
         }
         return { outcome: selectPermission(request, decision.allow) };
@@ -182,7 +238,7 @@ export class AcpRunner {
       const initialized: InitializeResponse = await connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { plan: {} },
-        clientInfo: { name: "kimi-subagents", version: "0.1.1" }
+        clientInfo: { name: "kimi-subagents", version: "0.2.0" }
       });
       const session = await connection.newSession({ cwd: input.workspace, additionalDirectories: input.additionalRoots ?? [], mcpServers: [] });
       sessionId = session.sessionId;
@@ -190,24 +246,32 @@ export class AcpRunner {
       await callbacks.onSession?.(session.sessionId);
       if (input.jobType === "plan") await connection.setSessionConfigOption({ sessionId: session.sessionId, configId: "mode", value: "plan" });
       if (input.model) await connection.setSessionConfigOption({ sessionId: session.sessionId, configId: "model", value: input.model });
-      if (input.thinking) await connection.setSessionConfigOption({ sessionId: session.sessionId, configId: "thinking", value: input.thinking });
+      const effort = input.effort ?? DEFAULT_EFFORT[input.jobType];
+      try {
+        await connection.setSessionConfigOption({ sessionId: session.sessionId, configId: "thinking", value: effort });
+      } catch (error) {
+        diagnostics = `${diagnostics}\n[kimi-subagents] effort "${effort}" was rejected by this Kimi build: ${safeError(error)}`.slice(-8192);
+      }
       const response = await connection.prompt({ sessionId: session.sessionId, prompt: [{ type: "text", text: promptFor(input) }] });
       usage = response.usage ?? undefined;
       child.stdin.end();
       const exitCode = await Promise.race([waitForExit(child), new Promise<number | null>((resolve) => setTimeout(() => resolve(null), 2000))]);
       if (exitCode === null && child.pid) await terminateProcessTree(child.pid);
+      const shellCommands = await collectShellCommands(guard, blockedActions);
       return {
         sessionId: session.sessionId,
         stopReason: response.stopReason,
         finalMessage: redact(finalMessage),
         usage,
         blockedActions,
+        shellCommands,
         diagnostics: diagnostics ? redact(diagnostics) : undefined,
         capabilities: initialized.agentCapabilities
       };
     } catch (error) {
       if (this.cancelling.has(jobId)) {
-        return { sessionId, stopReason: "cancelled", finalMessage: redact(finalMessage), usage, blockedActions, diagnostics: diagnostics ? redact(diagnostics) : undefined, capabilities: {} };
+        const shellCommands = await collectShellCommands(guard, blockedActions);
+        return { sessionId, stopReason: "cancelled", finalMessage: redact(finalMessage), usage, blockedActions, shellCommands, diagnostics: diagnostics ? redact(diagnostics) : undefined, capabilities: {} };
       }
       throw error;
     } finally {
@@ -215,6 +279,7 @@ export class AcpRunner {
       this.cancelling.delete(jobId);
       if (child.pid && child.exitCode === null) await terminateProcessTree(child.pid);
       if (home) await this.isolatedHome?.dispose(jobId);
+      await guard?.dispose().catch(() => undefined);
     }
   }
 

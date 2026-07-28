@@ -1,6 +1,17 @@
 import type { ToolKind, Usage } from "@agentclientprotocol/sdk";
 
 export type JobType = "analyze" | "plan" | "execute";
+export type JobEffort = "low" | "high" | "max";
+
+// Deterministic per-job-type effort so the same job behaves the same from Codex
+// and Claude Code without the host having to pass tuning parameters.
+export const DEFAULT_EFFORT: Record<JobType, JobEffort> = {
+  analyze: "low",
+  plan: "high",
+  execute: "high"
+};
+
+export const DEFAULT_STALL_SECONDS = 900;
 export type JobStatus = "queued" | "preparing" | "running" | "completed" | "failed" | "blocked" | "cancelled";
 
 export interface StartJobInput {
@@ -10,9 +21,11 @@ export interface StartJobInput {
   additionalRoots?: string[];
   allowDirty?: boolean;
   allowCommit?: boolean;
+  allowDelete?: boolean;
   timeoutSeconds?: number;
+  stallSeconds?: number;
   model?: string;
-  thinking?: string;
+  effort?: JobEffort;
   policyMode?: "manual" | "ask" | "auto";
 }
 
@@ -22,11 +35,19 @@ export interface BlockedAction {
   kind?: ToolKind | null;
   reason: string;
   at: string;
+  source: "acp-broker" | "shell-guard";
 }
 
 export interface ChangedFile {
   path: string;
   status: string;
+}
+
+export interface ShellCommandRecord {
+  at: string;
+  decision: "allow" | "deny";
+  rule: string;
+  command: string;
 }
 
 export interface JobRecord {
@@ -40,9 +61,11 @@ export interface JobRecord {
   policyMode?: "manual" | "ask" | "auto";
   allowDirty: boolean;
   allowCommit: boolean;
+  allowDelete: boolean;
   model?: string;
-  thinking?: string;
+  effort: JobEffort;
   timeoutSeconds?: number;
+  stallSeconds: number;
   createdAt: string;
   updatedAt: string;
   startedAt?: string;
@@ -56,9 +79,11 @@ export interface JobRecord {
   retries: number;
   usage?: Usage;
   blockedActions: BlockedAction[];
+  shellCommands: ShellCommandRecord[];
   changedFiles: ChangedFile[];
   preExistingChangedFiles?: ChangedFile[];
   diffSummary?: string;
+  diffPatch?: string;
   baselineCommit?: string;
   resultingCommit?: string;
   recoveryAvailable: boolean;
@@ -79,6 +104,7 @@ export interface RunResult {
   finalMessage: string;
   usage?: Usage;
   blockedActions: BlockedAction[];
+  shellCommands: ShellCommandRecord[];
   diagnostics?: string;
   capabilities: unknown;
 }

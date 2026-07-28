@@ -11,6 +11,34 @@ if (process.env.FAKE_ACP_MODE === "malformed") {
 
 const sessions = new Map();
 
+// Payload shapes mirror live Kimi Code 0.29.2: the permission request carries
+// only toolCallId, title and content[]; rawInput and locations are absent.
+function approvalText(text) {
+  return { type: "content", content: { type: "text", text: `Requesting approval to ${text}` } };
+}
+
+function payloadFor(mode) {
+  switch (mode) {
+    case "delete":
+      return { kind: "execute", title: "Bash", content: [approvalText("Running: rm fixture.txt")] };
+    case "write":
+      return { kind: "edit", title: "Write", content: [approvalText("Writing fixture.txt")] };
+    case "escape":
+      return {
+        kind: "edit",
+        title: "Edit",
+        content: [
+          { type: "diff", path: "C:/elsewhere/secrets.env", oldText: "a", newText: "b" },
+          approvalText("Editing secrets.env")
+        ]
+      };
+    case "opaque":
+      return { kind: "other", title: "MysteryTool", content: [] };
+    default:
+      return { kind: "execute", title: "Bash", content: [approvalText("Running: npm test")] };
+  }
+}
+
 const implementation = {
   initialize() {
     return { protocolVersion: acp.PROTOCOL_VERSION, agentCapabilities: { sessionCapabilities: { configOptions: {} } } };
@@ -27,23 +55,17 @@ const implementation = {
       while (!session.cancelled) await delay(25);
       return { stopReason: "cancelled" };
     }
-    const mode = process.env.FAKE_ACP_MODE ?? "safe";
-    const kind = mode === "delete" ? "delete" : mode === "execute" ? "execute" : "read";
-    const title = mode === "delete" ? "Remove-Item fixture.txt" : mode === "execute" ? "Run npm test" : "Read fixture";
-    const toolCall = {
-      toolCallId: "tool-1",
-      title,
-      kind,
-      status: "pending",
-      locations: [{ path: `${process.cwd()}\\fixture.txt` }],
-      rawInput: mode === "delete" ? { command: "Remove-Item", path: `${process.cwd()}\\fixture.txt` } : { command: "npm test" }
-    };
-    await client.notify(acp.methods.client.session.update, { sessionId: params.sessionId, update: { sessionUpdate: "tool_call", ...toolCall } });
+    const { kind, title, content } = payloadFor(process.env.FAKE_ACP_MODE ?? "execute");
+    await client.notify(acp.methods.client.session.update, {
+      sessionId: params.sessionId,
+      update: { sessionUpdate: "tool_call", toolCallId: "tool-1", title, kind, status: "pending" }
+    });
     const permission = await client.request(acp.methods.client.session.requestPermission, {
       sessionId: params.sessionId,
-      toolCall,
+      toolCall: { toolCallId: "tool-1", title, content },
       options: [
-        { optionId: "allow", name: "Allow", kind: "allow_once" },
+        { optionId: "approve_once", name: "Allow once", kind: "allow_once" },
+        { optionId: "approve_always", name: "Allow always", kind: "allow_always" },
         { optionId: "reject", name: "Reject", kind: "reject_once" }
       ]
     });

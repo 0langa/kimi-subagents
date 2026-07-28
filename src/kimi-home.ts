@@ -2,6 +2,8 @@ import { link, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/pro
 import os from "node:os";
 import path from "node:path";
 
+import { runFile } from "./process.js";
+
 function defaultKimiHome(): string {
   return path.resolve(process.env.KIMI_CODE_HOME ?? path.join(os.homedir(), ".kimi-code"));
 }
@@ -36,11 +38,32 @@ function safeConfig(raw: string): string {
   ].join("\n");
   const output = [
     root,
+    "merge_all_available_skills = false",
+    "extra_skill_dirs = []",
     allowed(managed, ["type", "api_key", "base_url"]),
     allowed(oauth, ["storage", "key"]),
     ...models.map((block) => allowed(block, ["provider", "model", "max_context_size", "max_input_size", "capabilities", "display_name", "support_efforts", "default_effort"]))
   ];
   return `${output.join("\n\n")}\n`;
+}
+
+async function gitSetting(name: string): Promise<string | undefined> {
+  try {
+    const value = (await runFile("git", ["config", "--global", "--get", name], undefined, 10_000)).stdout.trim();
+    return value.length > 0 ? value : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// The delegated process gets a relocated HOME/USERPROFILE so that host skill
+// directories (~/.agents/skills and friends) and credential files such as
+// ~/.npmrc or ~/.ssh are invisible to it. Git identity is the one host setting
+// worth carrying over, so local commits keep the user's authorship.
+export async function gitIdentity(): Promise<string> {
+  const name = await gitSetting("user.name");
+  const email = await gitSetting("user.email");
+  return `[user]\n${name ? `\tname = ${name}\n` : ""}${email ? `\temail = ${email}\n` : ""}`;
 }
 
 export class IsolatedKimiHome {
@@ -62,6 +85,7 @@ export class IsolatedKimiHome {
       if (await exists(device)) await link(device, path.join(target, "device_id"));
       const config = safeConfig(await readFile(path.join(this.source, "config.toml"), "utf8"));
       await writeFile(path.join(target, "config.toml"), config, { encoding: "utf8", mode: 0o600 });
+      await writeFile(path.join(target, ".gitconfig"), await gitIdentity(), { encoding: "utf8", mode: 0o600 });
       return target;
     } catch (error) {
       await rm(target, { recursive: true, force: true });

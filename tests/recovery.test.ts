@@ -35,7 +35,7 @@ describe("recovery checkpoints", () => {
     const recovery = new RecoveryManager(storage);
     const jobId = "11111111-1111-4111-8111-111111111111";
     await recovery.create(jobId, workspace);
-    await recovery.backupBeforeWrite(jobId, { toolCallId: "1", kind: "edit", title: "edit", locations: [{ path: path.join(workspace, "fixture.txt") }] });
+    await recovery.backupBeforeWrite(jobId, [path.join(workspace, "fixture.txt"), "relative-only.txt"]);
     await writeFile(path.join(workspace, "fixture.txt"), "after\n");
     await expect(recovery.restore(jobId, ["fixture.txt"], "wrong")).rejects.toThrow("Explicit confirmation required");
     await recovery.restore(jobId, ["fixture.txt"], `RESTORE ${jobId}`);

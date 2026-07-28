@@ -1,9 +1,12 @@
+import { readFile } from "node:fs/promises";
+
 import { describe, expect, it } from "vitest";
 
 import { SERVER_VERSION } from "../src/server.js";
 
 describe("server scaffold", () => {
-  it("exposes plugin version", () => {
-    expect(SERVER_VERSION).toBe("0.1.1");
+  it("reports the same version as the package manifest", async () => {
+    const { version } = JSON.parse(await readFile("package.json", "utf8")) as { version: string };
+    expect(SERVER_VERSION).toBe(version);
   });
 });

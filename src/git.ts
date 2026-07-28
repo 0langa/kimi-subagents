@@ -94,6 +94,31 @@ export async function changedFiles(
   return { files, preExistingFiles, summary, head };
 }
 
+const MAX_PATCH_BYTES = 256 * 1024;
+
+// Reviewable artifact for the main agent: unified diff of everything the job left
+// behind, including untracked files, capped so records stay small.
+export async function workspacePatch(workspace: string, baselineCommit?: string): Promise<string | undefined> {
+  if (!(await isGitRepository(workspace))) return undefined;
+  const sections: string[] = [];
+  try {
+    if (baselineCommit) {
+      const head = await gitHead(workspace);
+      if (head && head !== baselineCommit) sections.push(await gitOutput(workspace, ["diff", `${baselineCommit}..${head}`], 60_000));
+    }
+    sections.push(await gitOutput(workspace, ["diff", "HEAD"], 60_000));
+    const untracked = (await gitOutput(workspace, ["ls-files", "--others", "--exclude-standard"])).split(/\r?\n/).filter(Boolean);
+    for (const file of untracked.slice(0, 50)) {
+      sections.push(await gitOutput(workspace, ["diff", "--no-index", "--", "/dev/null", file], 60_000).catch(() => ""));
+    }
+  } catch {
+    return undefined;
+  }
+  const patch = sections.filter((section) => section.trim().length > 0).join("\n");
+  if (patch.length === 0) return undefined;
+  return patch.length > MAX_PATCH_BYTES ? `${patch.slice(0, MAX_PATCH_BYTES)}\n[patch truncated at 256 KiB]` : patch;
+}
+
 export function normalizeRelative(workspace: string, target: string): string {
   const relative = path.relative(path.resolve(workspace), path.resolve(target));
   if (!relative || relative === ".") return ".";

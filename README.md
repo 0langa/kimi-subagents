@@ -11,6 +11,7 @@ v0.1.1 development build. Production `0langas-plugins` marketplace is intentiona
 - Windows 11 tested
 - Node.js 20 or newer
 - Kimi Code 0.29.2 or newer on `PATH`, authenticated through managed Kimi OAuth
+- Git Bash (shipped with Git for Windows); jobs are refused when bash is unavailable because the shell guard cannot be installed
 - Codex or Claude Code with plugin support
 
 No Python, WSL, Docker, or runtime package install. Repository commits bundled `dist/server.mjs`; installed runtime starts with `node`.
@@ -42,8 +43,10 @@ Codex can invoke `$kimi-subagents`. Claude Code exposes `/kimi-subagents:kimi-su
 - `kimi_preflight`: versions, authentication/session creation, ACP capabilities
 - `kimi_start`: asynchronous `analyze`, native `plan`, or `execute` job
 - `kimi_status`, `kimi_list`, `kimi_cancel`: compact lifecycle control; status supports up to 55-second server-side terminal wait to avoid model-driven polling cost
-- `kimi_result`: redacted result, usage, retries, changed files, blocks, recovery
+- `kimi_result`: redacted result, usage, retries, changed files, blocks, full shell command log, recovery
 - `kimi_restore`: selected checkpoint paths after exact explicit confirmation
+
+`kimi_start` gates risky operations behind explicit flags: `allowCommit` (local commit), `allowDelete` (file deletion inside granted roots), `allowDirty` (start from a dirty tree).
 
 Maximum two concurrent jobs, one execute writer/workspace, two nested Kimi agents/job. No default timeout. One transient failure retries once.
 
@@ -76,11 +79,16 @@ Restart host after installation. Marketplace installs are cached; regenerate cat
 
 ## Safety
 
-Kimi can broadly edit and run local development commands inside granted roots. Broker blocks known permanent deletion, destructive Git, GitHub/remote mutation, credential export, workspace escape, and undelegated commits. Execute jobs checkpoint before launch and reject dirty Git trees without explicit override.
+Enforcement runs in two layers, because Kimi's ACP permission request carries only a tool name and a description truncated at 50 characters — never the full command.
 
-Each ACP process receives an isolated temporary `KIMI_CODE_HOME`: managed OAuth credentials are linked read-only-by-convention, safe provider/model metadata is copied without API keys, and global Kimi MCP servers, plugins, hooks, skills, sessions, and logs are not inherited. Temporary Kimi session/log state is removed when job ends. Enabled project-local `.kimi-code/mcp.json` servers cause delegation refusal because MCP parameters bypass ACP tool approval. Non-empty config API keys are unsupported in v0.1 isolation.
+1. **ACP permission broker.** Parses the approval payload (`Running:`, `Writing`, `Editing`, `Call`, diff entries), resolves relative paths against the workspace, denies destructive and out-of-root operations, and **denies anything it cannot parse**. Approvals are one-shot; `allow_always` is never selected.
+2. **Shell guard.** `assets/shell-guard.sh` is sourced through `BASH_ENV` into every Bash process the job starts — including nested and subagent shells — and inspects each command with its full text via a `DEBUG` trap, exiting 126 on denial. The bootstrap is syntax-checked before the job starts; a job runs guarded or not at all. Every decision is logged and returned as `shellCommands`.
 
-This is not a formal sandbox. Same-user Windows commands may evade pattern controls through novel or obfuscated execution. Main Codex/Claude agent must inspect diff/commit range, rerun checks, and label output accepted, repaired, or rejected. See [SECURITY.md](SECURITY.md) and [architecture](docs/architecture.md).
+Denied by default: permanent deletion, destructive Git, remote Git and GitHub CLI usage, credential file or environment access, alternate interpreters (`powershell`, `cmd`, `wsl`), network uploads, directory changes and writes outside the granted roots, local commits. `allowCommit` and `allowDelete` open exactly one class each.
+
+Each ACP process receives an isolated temporary `KIMI_CODE_HOME` **and relocated `HOME`/`USERPROFILE`**: managed OAuth credentials are linked, safe provider/model metadata is copied without API keys, and host Kimi MCP servers, plugins, hooks, sessions, logs, host skill directories (`~/.agents/skills` and provider skill directories) and host credential files (`~/.npmrc`, `~/.ssh`) are not visible. Only Git identity is carried forward. A delegated job sees Kimi's three built-in skills and nothing else, on any machine. Enabled project-local `.kimi-code/mcp.json` servers cause refusal. Non-empty config API keys are unsupported.
+
+This is not a sandbox. `FetchURL`, `WebSearch`, `Agent` and `AgentSwarm` are auto-approved by Kimi itself and never reach the broker, so outbound reads and subagent spawning cannot be blocked — only the shell commands those subagents run are guarded. Same-user execution may still evade pattern controls through obfuscation. The main Codex/Claude agent must inspect the diff or commit range, rerun checks, and label output accepted, repaired or rejected. See [SECURITY.md](SECURITY.md) and [architecture](docs/architecture.md).
 
 Kimi ACP `/goal` is omitted: live Kimi Code 0.29.2 returned `Unknown ACP command: /goal`.
 
@@ -93,6 +101,8 @@ npm test
 npm run build
 npm run security:scan
 ```
+
+`npm test` is deterministic and never starts Kimi; its ACP fixtures are captured from live Kimi payloads. `npm run test:live` drives the installed Kimi binary through real jobs and asserts guard enforcement, skill isolation and MCP isolation. Run it after any change to the runtime, the guard or the isolation logic.
 
 Provider manifests come from `forge.yaml`. Run Forge compile and sync checks after surface changes. No release tag exists for v0.1.
 

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { AcpRunner } from "../src/acp-runner.js";
 import { RecoveryManager } from "../src/recovery.js";
+import { ShellGuard } from "../src/shell-guard.js";
 
 const roots: string[] = [];
 const priorMode = process.env.FAKE_ACP_MODE;
@@ -14,12 +15,18 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-async function setup() {
+async function setup(withGuard = false) {
   const workspace = await mkdtemp(path.join(os.tmpdir(), "kimi-acp-"));
   const storage = await mkdtemp(path.join(os.tmpdir(), "kimi-acp-store-"));
   roots.push(workspace, storage);
   await writeFile(path.join(workspace, "fixture.txt"), "safe\n");
-  const runner = new AcpRunner(new RecoveryManager(storage), process.execPath, [path.resolve("tests/fixtures/fake-acp.mjs")]);
+  const runner = new AcpRunner(
+    new RecoveryManager(storage),
+    process.execPath,
+    [path.resolve("tests/fixtures/fake-acp.mjs")],
+    undefined,
+    withGuard ? new ShellGuard(path.join(storage, "guards")) : undefined
+  );
   return { runner, workspace };
 }
 
@@ -30,30 +37,62 @@ describe("ACP runner", () => {
     await expect(runner.run("22222222-3333-4333-8333-333333333333", { task: "test", jobType: "analyze", workspace })).rejects.toThrow();
   });
 
-  it("streams result and allows ordinary execute tool", async () => {
+  it("allows an ordinary command from a real-shaped permission payload", async () => {
     process.env.FAKE_ACP_MODE = "execute";
     const { runner, workspace } = await setup();
     const result = await runner.run("33333333-3333-4333-8333-333333333333", { task: "test", jobType: "execute", workspace });
-    expect(result.finalMessage).toBe("permission:allow");
+    expect(result.finalMessage).toBe("permission:approve_once");
     expect(result.usage?.totalTokens).toBe(12);
     expect(result.blockedActions).toEqual([]);
   });
 
-  it("denies execute tool in analyze mode", async () => {
+  it("denies command execution in analyze jobs", async () => {
     process.env.FAKE_ACP_MODE = "execute";
     const { runner, workspace } = await setup();
     const result = await runner.run("44444444-4444-4444-8444-444444444444", { task: "test", jobType: "analyze", workspace });
     expect(result.finalMessage).toBe("permission:reject");
-    expect(result.blockedActions[0]?.reason).toContain("Analyze jobs");
+    expect(result.blockedActions[0]?.reason).toContain("read-only-job");
+    expect(result.blockedActions[0]?.source).toBe("acp-broker");
   });
 
-  it("denies permanent deletion", async () => {
+  it("denies deletion requested through the shell", async () => {
     process.env.FAKE_ACP_MODE = "delete";
     const { runner, workspace } = await setup();
     const result = await runner.run("55555555-5555-4555-8555-555555555555", { task: "test", jobType: "execute", workspace });
     expect(result.finalMessage).toBe("permission:reject");
     expect(result.blockedActions[0]?.reason).toContain("deletion");
     expect(await readFile(path.join(workspace, "fixture.txt"), "utf8")).toBe("safe\n");
+  });
+
+  it("allows a relative Write inside the workspace", async () => {
+    process.env.FAKE_ACP_MODE = "write";
+    const { runner, workspace } = await setup();
+    const result = await runner.run("77777777-7777-4777-8777-777777777777", { task: "test", jobType: "execute", workspace });
+    expect(result.finalMessage).toBe("permission:approve_once");
+  });
+
+  it("denies an edit that targets a path outside the granted roots", async () => {
+    process.env.FAKE_ACP_MODE = "escape";
+    const { runner, workspace } = await setup();
+    const result = await runner.run("88888888-8888-4888-8888-888888888888", { task: "test", jobType: "execute", workspace });
+    expect(result.finalMessage).toBe("permission:reject");
+    expect(result.blockedActions[0]?.reason).toContain("workspace-escape");
+  });
+
+  it("fails closed on a permission payload it cannot read", async () => {
+    process.env.FAKE_ACP_MODE = "opaque";
+    const { runner, workspace } = await setup();
+    const result = await runner.run("99999999-9999-4999-8999-999999999999", { task: "test", jobType: "execute", workspace });
+    expect(result.finalMessage).toBe("permission:reject");
+    expect(result.blockedActions[0]?.reason).toContain("fail-closed");
+  });
+
+  it("installs the shell guard and reports its command log", async () => {
+    process.env.FAKE_ACP_MODE = "execute";
+    const { runner, workspace } = await setup(true);
+    const result = await runner.run("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", { task: "test", jobType: "execute", workspace });
+    expect(result.finalMessage).toBe("permission:approve_once");
+    expect(Array.isArray(result.shellCommands)).toBe(true);
   });
 
   it("cancels active session and process", async () => {

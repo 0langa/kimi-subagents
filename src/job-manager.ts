@@ -3,16 +3,21 @@ import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
 
 import { AcpRunner } from "./acp-runner.js";
-import { changedFiles, gitDirty, gitHead, gitOutput, isGitRepository, workingTreeSnapshot, type WorkingTreeEntry } from "./git.js";
+import { changedFiles, gitDirty, gitHead, gitOutput, isGitRepository, workingTreeSnapshot, workspacePatch, type WorkingTreeEntry } from "./git.js";
 import { LockManager, type HeldLocks } from "./locks.js";
 import { IsolatedKimiHome } from "./kimi-home.js";
 import { redact, safeError } from "./redaction.js";
 import { RecoveryManager } from "./recovery.js";
+import { ShellGuard } from "./shell-guard.js";
 import { RecordStore } from "./storage.js";
-import type { JobRecord, PreflightResult, StartJobInput } from "./types.js";
+import { DEFAULT_EFFORT, DEFAULT_STALL_SECONDS, type JobRecord, type PreflightResult, type StartJobInput } from "./types.js";
 
 function transient(error: unknown): boolean {
   return /ECONNRESET|ETIMEDOUT|EPIPE|EOF|network|temporar|rate.?limit|process exited/i.test(error instanceof Error ? error.message : String(error));
+}
+
+function patchOf(patch: string | undefined): string | undefined {
+  return patch ? redact(patch) : undefined;
 }
 
 function processExists(pid: number): boolean {
@@ -32,7 +37,13 @@ export class JobManager {
   constructor(store = new RecordStore()) {
     this.store = store;
     this.recovery = new RecoveryManager(store.recoveryDir);
-    this.runner = new AcpRunner(this.recovery, "kimi", ["acp"], new IsolatedKimiHome(path.join(store.root, "kimi-homes")));
+    this.runner = new AcpRunner(
+      this.recovery,
+      "kimi",
+      ["acp"],
+      new IsolatedKimiHome(path.join(store.root, "kimi-homes")),
+      new ShellGuard(path.join(store.root, "guards"))
+    );
     this.locks = new LockManager(store.locksDir);
   }
 
@@ -101,13 +112,16 @@ export class JobManager {
       policyMode: input.policyMode,
       allowDirty: Boolean(input.allowDirty),
       allowCommit: Boolean(input.allowCommit),
+      allowDelete: Boolean(input.allowDelete),
       model: input.model,
-      thinking: input.thinking,
+      effort: input.effort ?? DEFAULT_EFFORT[input.jobType],
       timeoutSeconds: input.timeoutSeconds,
+      stallSeconds: input.stallSeconds ?? DEFAULT_STALL_SECONDS,
       createdAt: now,
       updatedAt: now,
       retries: 0,
       blockedActions: [],
+      shellCommands: [],
       changedFiles: [],
       recoveryAvailable: false,
       acceptedRisk: "allow-unless-blocked"
@@ -146,16 +160,33 @@ export class JobManager {
     if (this.inputs.size > this.active.size && !started) this.schedulePump(750);
   }
 
-  private async update(jobId: string, changes: Partial<JobRecord>): Promise<JobRecord> {
+  // Tolerates a vanished record: retention cleanup or a removed runtime root must
+  // not turn a finishing job into an unhandled rejection.
+  private async update(jobId: string, changes: Partial<JobRecord>): Promise<JobRecord | undefined> {
     const record = await this.store.get(jobId);
-    if (!record) throw new Error(`Unknown job: ${jobId}`);
+    if (!record) return undefined;
     Object.assign(record, changes, { updatedAt: new Date().toISOString() });
     await this.store.save(record);
     return record;
   }
 
+  private startStallWatchdog(jobId: string, stallSeconds: number, lastProgress: { at: number; stalled: boolean }): NodeJS.Timeout {
+    const timer = setInterval(() => {
+      if (Date.now() - lastProgress.at < stallSeconds * 1000) return;
+      lastProgress.stalled = true;
+      clearInterval(timer);
+      void this.update(jobId, { progress: `No Kimi activity for ${stallSeconds}s; cancelling stalled job` })
+        .then(() => this.runner.cancel(jobId))
+        .catch(() => undefined);
+    }, Math.min(stallSeconds, 30) * 1000);
+    timer.unref();
+    return timer;
+  }
+
   private async runOne(jobId: string, input: StartJobInput, held: HeldLocks): Promise<void> {
     let timer: NodeJS.Timeout | undefined;
+    let stallTimer: NodeJS.Timeout | undefined;
+    const lastProgress = { at: Date.now(), stalled: false };
     let baselineStatus = "";
     let baselineTree: WorkingTreeEntry[] = [];
     try {
@@ -178,12 +209,17 @@ export class JobManager {
         timer = setTimeout(() => { void this.runner.cancel(jobId); }, input.timeoutSeconds * 1000);
         timer.unref();
       }
+      const stallSeconds = input.stallSeconds ?? DEFAULT_STALL_SECONDS;
+      stallTimer = this.startStallWatchdog(jobId, stallSeconds, lastProgress);
       let result;
       for (let attempt = 0; attempt < 2; attempt += 1) {
         try {
           result = await this.runner.run(jobId, input, {
             onSession: async (sessionId) => { await this.update(jobId, { sessionId }); },
-            onProgress: async (progress) => { await this.update(jobId, { progress }); }
+            onProgress: async (progress) => {
+              lastProgress.at = Date.now();
+              await this.update(jobId, { progress });
+            }
           });
           break;
         } catch (error) {
@@ -202,19 +238,24 @@ export class JobManager {
       const cancelled = latest?.status === "cancelled" || result.stopReason === "cancelled";
       const emptyResult = !cancelled && !result.finalMessage.trim();
       await this.update(jobId, {
-        status: cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
+        status: lastProgress.stalled ? "failed" : cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
         stopReason: result.stopReason,
         finalMessage: result.finalMessage,
         diagnostics: result.diagnostics,
         usage: result.usage,
         blockedActions: result.blockedActions,
+        shellCommands: result.shellCommands,
         changedFiles: diff.files,
         preExistingChangedFiles: diff.preExistingFiles,
         diffSummary: readOnlyViolation ? `READ-ONLY VIOLATION: ${diff.summary}` : diff.summary,
+        diffPatch: input.jobType === "execute" ? patchOf(await workspacePatch(input.workspace, baselineCommit)) : undefined,
         resultingCommit: diff.head,
-        error: readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy." : emptyResult ? "Kimi ACP returned no final message; result rejected." : undefined,
+        error: lastProgress.stalled
+          ? `Job cancelled after ${stallSeconds}s without Kimi activity.`
+          : readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy."
+            : emptyResult ? "Kimi ACP returned no final message; result rejected." : undefined,
         finishedAt: new Date().toISOString(),
-        progress: cancelled ? "Cancelled" : "Finished"
+        progress: lastProgress.stalled ? "Stalled" : cancelled ? "Cancelled" : "Finished"
       });
     } catch (error) {
       const latest = await this.store.get(jobId);
@@ -226,6 +267,7 @@ export class JobManager {
       });
     } finally {
       if (timer) clearTimeout(timer);
+      if (stallTimer) clearInterval(stallTimer);
       this.active.delete(jobId);
       this.inputs.delete(jobId);
       await this.locks.release(held);

@@ -37,6 +37,7 @@ const success = (id: string): RunResult => ({
   stopReason: "end_turn",
   finalMessage: "done",
   blockedActions: [],
+  shellCommands: [],
   capabilities: {}
 });
 
@@ -72,10 +73,12 @@ describe("job manager", () => {
       taskSummary: "stale",
       allowDirty: false,
       allowCommit: false,
+      allowDelete: false, effort: "high", stallSeconds: 900,
       createdAt: now,
       updatedAt: now,
       retries: 0,
       blockedActions: [],
+      shellCommands: [],
       changedFiles: [],
       recoveryAvailable: false,
       acceptedRisk: "allow-unless-blocked"
@@ -85,6 +88,34 @@ describe("job manager", () => {
     const recovered = await manager.get(id);
     expect(recovered.status).toBe("failed");
     expect(recovered.error).toContain("Host process stopped");
+  });
+
+  it("cancels a job that stops reporting progress", async () => {
+    const { workspace, manager } = await fixture();
+    let cancelled = false;
+    manager.runner.run = async (id, _input, callbacks) => {
+      await callbacks?.onProgress?.("working");
+      await new Promise((resolve) => setTimeout(resolve, 4_000));
+      return { ...success(id), stopReason: cancelled ? "cancelled" : "end_turn" };
+    };
+    manager.runner.cancel = async () => { cancelled = true; return true; };
+    const started = await manager.start({ task: "stall", jobType: "analyze", workspace, stallSeconds: 1 });
+    const finished = await waitFor(manager, started.id, (candidate) => candidate.status === "failed", 12_000);
+    expect(cancelled).toBe(true);
+    expect(finished.error).toContain("without Kimi activity");
+  }, 20_000);
+
+  it("records the deterministic default effort per job type", async () => {
+    const { workspace, manager } = await fixture();
+    manager.runner.run = async (id) => success(id);
+    const analyze = await manager.start({ task: "a", jobType: "analyze", workspace });
+    const execute = await manager.start({ task: "b", jobType: "execute", workspace });
+    expect(analyze.effort).toBe("low");
+    expect(execute.effort).toBe("high");
+    expect(analyze.stallSeconds).toBe(900);
+    for (const job of [analyze, execute]) {
+      await waitFor(manager, job.id, (candidate) => ["completed", "failed", "blocked", "cancelled"].includes(candidate.status));
+    }
   });
 
   it("refuses enabled project-local Kimi MCP servers", async () => {

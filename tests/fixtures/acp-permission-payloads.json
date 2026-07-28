@@ -1,0 +1,67 @@
+{
+  "capturedFrom": "Kimi Code 0.29.2 `kimi acp`, live capture 2026-07-28",
+  "notes": [
+    "session/request_permission delivers toolCall with toolCallId, title (bare tool name) and content[] only.",
+    "rawInput, kind and locations are absent from the permission payload; the tool_call_update carrying rawInput arrives after the decision.",
+    "The preceding tool_call notification supplies kind for parent-agent calls, but subagent-issued calls have no preceding notification.",
+    "Bash previews are truncated by Kimi at 50 characters, so command text from ACP alone is never authoritative."
+  ],
+  "payloads": {
+    "bashShort": {
+      "toolCallId": "0:tool_NuxAX01Q8088znMonPgusuHs",
+      "title": "Bash",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "Requesting approval to Running: cd .. && printf hi > chained.txt" } }]
+    },
+    "bashCommit": {
+      "toolCallId": "0:tool_vuzjmzLgw7LZKu3lEhbE27kz",
+      "title": "Bash",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "Requesting approval to Running: git add -A && git commit -m probe" } }]
+    },
+    "bashTruncated": {
+      "toolCallId": "0:tool_truncated",
+      "title": "Bash",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "Requesting approval to Running: npm run build && node scripts/relea…" } }]
+    },
+    "bashSubagent": {
+      "toolCallId": "0:tool_ck5kHbmNNRnPhcIYhNBxv5zP",
+      "title": "Bash",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "Requesting approval to Running: git log --oneline -1" } }]
+    },
+    "writeRelative": {
+      "toolCallId": "0:tool_JGoyXe5Qh6LZrDWOFwMvFCf0",
+      "title": "Write",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "Requesting approval to Writing sub/dir/note.txt" } }]
+    },
+    "editAbsolute": {
+      "toolCallId": "0:tool_i2NrTARcND9TUIvtJKHmyajo",
+      "title": "Edit",
+      "content": [
+        { "type": "diff", "path": "C:/fixture/workspace/probe-write.txt", "oldText": "hello", "newText": "hi" },
+        { "type": "content", "content": { "type": "text", "text": "Requesting approval to Editing probe-write.txt" } }
+      ]
+    },
+    "editOutsideRoot": {
+      "toolCallId": "0:tool_outside",
+      "title": "Edit",
+      "content": [
+        { "type": "diff", "path": "C:/other/place/secrets.env", "oldText": "a", "newText": "b" },
+        { "type": "content", "content": { "type": "text", "text": "Requesting approval to Editing secrets.env" } }
+      ]
+    },
+    "mcpCall": {
+      "toolCallId": "0:tool_mcp",
+      "title": "mcp__scalpel__delete_range",
+      "content": [{ "type": "content", "content": { "type": "text", "text": "Requesting approval to Call mcp__scalpel__delete_range" } }]
+    },
+    "unknownShape": {
+      "toolCallId": "0:tool_unknown",
+      "title": "SomeFutureTool",
+      "content": []
+    }
+  },
+  "autoApprovedWithoutClientRequest": [
+    "Read", "Grep", "Glob", "ReadMediaFile", "SetTodoList", "TodoList", "TaskList", "TaskOutput",
+    "CronList", "WebSearch", "FetchURL", "Agent", "AgentSwarm", "AskUserQuestion", "Skill",
+    "EnterPlanMode", "ExitPlanMode", "CreateGoal", "GetGoal", "SetGoalBudget", "UpdateGoal", "select_tools"
+  ]
+}

@@ -7,7 +7,7 @@ import { JobManager } from "./job-manager.js";
 import { safeError } from "./redaction.js";
 import type { StartJobInput } from "./types.js";
 
-export const SERVER_VERSION = "0.1.1";
+export const SERVER_VERSION = "0.2.0";
 
 function result(value: unknown) {
   const structuredContent = { result: value };
@@ -23,11 +23,13 @@ function statusView(record: Awaited<ReturnType<JobManager["get"]>>) {
     id: record.id,
     status: record.status,
     jobType: record.jobType,
+    effort: record.effort,
     progress: record.progress,
     updatedAt: record.updatedAt,
     startedAt: record.startedAt,
     finishedAt: record.finishedAt,
     blockedCount: record.blockedActions.length,
+    shellCommandCount: record.shellCommands.length,
     recoveryAvailable: record.recoveryAvailable,
     error: record.error
   };
@@ -55,9 +57,11 @@ export function createServer(manager = new JobManager()): { server: McpServer; m
       additionalRoots: z.array(z.string()).max(8).optional(),
       allowDirty: z.boolean().optional(),
       allowCommit: z.boolean().optional().describe("True only when delegated task explicitly requests a local commit."),
+      allowDelete: z.boolean().optional().describe("True only when the delegated task explicitly requires deleting files inside the granted roots."),
       timeoutSeconds: z.number().int().min(5).max(86_400).optional().describe("No timeout when omitted."),
+      stallSeconds: z.number().int().min(60).max(7_200).optional().describe("Cancel the job when Kimi reports no activity for this long. Defaults to 900."),
       model: z.string().min(1).optional(),
-      thinking: z.string().min(1).optional(),
+      effort: z.enum(["low", "high", "max"]).optional().describe("Reasoning effort. Defaults to low for analyze and high for plan/execute."),
       policyMode: z.enum(["manual", "ask", "auto"]).optional()
     },
     outputSchema,

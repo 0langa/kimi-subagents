@@ -43,6 +43,9 @@ describe("isolated Kimi home", () => {
     expect(config).toContain('[models."kimi-code/test"]');
     expect(config).not.toContain("hooks");
     expect(config).not.toContain("unsafe-hook");
+    expect(config).toContain("merge_all_available_skills = false");
+    expect(config).toContain("extra_skill_dirs = []");
+    expect(await readFile(path.join(home, ".gitconfig"), "utf8")).toContain("[user]");
     await expect(readFile(path.join(home, "mcp.json"), "utf8")).rejects.toThrow();
     await writeFile(path.join(home, "session.json"), "transient");
     await isolated.dispose("test-job");

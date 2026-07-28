@@ -1,6 +1,6 @@
 {
   "name": "kimi-subagents",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Guarded Kimi Code ACP delegation runtime for Codex and Claude Code.",
   "type": "module",
   "private": true,
@@ -14,6 +14,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:live": "vitest run --config vitest.live.config.ts",
     "test:watch": "vitest",
     "validate": "npm run lint && npm run typecheck && npm test && npm run build && npm run security:scan"
   },

@@ -1,8 +1,10 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+
+const { version } = JSON.parse(readFileSync(path.join(import.meta.dirname, "..", "package.json"), "utf8"));
 
 const sha = (process.argv[2] ?? execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" })).trim();
 if (!/^[a-f0-9]{40}$/i.test(sha)) throw new Error("Expected exact 40-character Git SHA");
@@ -31,7 +33,7 @@ const claude = {
     source,
     displayName: "Kimi Subagents",
     description: "Guarded Kimi Code ACP delegation for Codex and Claude Code.",
-    version: "0.1.1",
+    version,
     repository: "https://github.com/0langa/kimi-subagents"
   }]
 };

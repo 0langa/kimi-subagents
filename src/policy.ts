@@ -1,36 +1,101 @@
 import path from "node:path";
 
-import type { RequestPermissionRequest, ToolCall, ToolCallUpdate, ToolKind } from "@agentclientprotocol/sdk";
+import type { RequestPermissionRequest, ToolKind } from "@agentclientprotocol/sdk";
 
 import type { JobType } from "./types.js";
 
-export interface PolicyDecision { allow: boolean; reason: string }
+export interface PolicyDecision { allow: boolean; reason: string; rule: string }
+
+export interface PolicyInput {
+  jobType: JobType;
+  toolName: string;
+  kind?: ToolKind | null;
+  content: unknown;
+  roots: string[];
+  workspace: string;
+  allowCommit: boolean;
+  allowDelete: boolean;
+}
+
+export interface ExtractedAction {
+  action?: string;
+  command?: string;
+  targetPath?: string;
+  diffPaths: string[];
+  mcpTool?: string;
+  truncated: boolean;
+}
+
+const APPROVAL_PREFIX = "Requesting approval to ";
+const READ_ONLY_TOOLS = new Set(["Read", "Grep", "Glob", "ReadMediaFile", "TodoList", "SetTodoList", "TaskList", "TaskOutput", "CronList", "WebSearch", "FetchURL"]);
+const EDIT_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit", "StrReplaceFile", "WriteFile", "apply_patch"]);
+const SHELL_TOOLS = new Set(["Bash", "BashOutput", "Shell", "Terminal"]);
 
 const DELETE_PATTERNS = [
-  /(?:^|[;&|\s])(?:rm|del|erase|rmdir|rd|remove-item|unlink|shred)\b/i,
-  /\bgit\s+(?:clean\b|reset\s+--hard\b|stash\s+(?:drop|clear)\b|branch\s+-D\b|tag\s+-d\b|reflog\s+expire\b|gc\b)/i,
-  /\bgit\s+(?:checkout|restore)\s+--?\s*\./i
+  /(?:^|[;&|\s(])(?:rm|rmdir|shred|unlink|del|erase|remove-item)(?:\s|$)/i
+];
+const DESTRUCTIVE_GIT_PATTERNS = [
+  /\bgit\s+(?:clean|filter-branch|gc)(?:\s|$)/i,
+  /\bgit\s+reset\s+--hard/i,
+  /\bgit\s+stash\s+(?:drop|clear)/i,
+  /\bgit\s+branch\s+-D/,
+  /\bgit\s+tag\s+-d\b/i,
+  /\bgit\s+reflog\s+expire/i,
+  /\bgit\s+update-ref\s+-d/i,
+  /\bgit\s+(?:checkout|restore)\s+(?:--\s*)?\.(?:\s|$)/i
 ];
 const REMOTE_MUTATION_PATTERNS = [
   /\bgit\s+push\b/i,
-  /\bgh\s+(?:pr\s+(?:create|merge|close|edit|comment|review)|issue\s+(?:create|close|edit|comment|delete)|release\s+(?:create|delete|edit|upload)|repo\s+(?:delete|rename|archive|fork|create)|api\b.*(?:--method|-X)\s*(?:POST|PUT|PATCH|DELETE))/i,
-  /(?:api\.github\.com|github\.com\/api).*(?:-X|--request|--method)\s*(?:POST|PUT|PATCH|DELETE)/i
+  /\bgit\s+remote\s+(?:add|set-url|remove|rename)\b/i,
+  /(?:^|[;&|\s(])(?:gh|glab|hub)(?:\s|$)/i
 ];
 const CREDENTIAL_PATTERNS = [
-  /\bgh\s+auth\s+token\b/i,
-  /\b(?:set|env|printenv|get-childitem\s+env:)\b.*(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL)/i,
-  /\b(?:echo|write-output)\b.*\$(?:env:)?(?:\w*(?:TOKEN|KEY|SECRET|PASSWORD|CREDENTIAL)\w*)/i
+  /(?:\.ssh\/|\.git-credentials|\.npmrc|\.aws\/credentials|\.kimi-code\/credentials|\.claude\/\.credentials|\.codex\/auth)/i,
+  /(?:^|[;&|\s(])(?:printenv|env)(?:\s|$)/i,
+  /\$\{?[A-Za-z_]*(?:TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY)/i
 ];
-const COMMIT_PATTERN = /\bgit\s+commit\b/i;
-const FILE_WRITE_COMMAND_PATTERN = /\b(?:set-content|out-file|new-item|copy-item|move-item|rename-item|touch)\b|\b(?:echo|printf)\b[^\r\n]*>/i;
+const INTERPRETER_ESCAPE_PATTERN = /(?:^|[;&|\s(])(?:powershell(?:\.exe)?|pwsh(?:\.exe)?|cmd(?:\.exe)?|wsl(?:\.exe)?)(?:\s|$)/i;
+const COMMIT_PATTERN = /\bgit\s+commit(?:\s|$)/i;
 
-function stringifyTool(call: ToolCall | ToolCallUpdate): string {
-  let raw: string;
-  try { raw = JSON.stringify(call.rawInput ?? ""); } catch { raw = ""; }
-  return `${"name" in call ? call.name ?? "" : ""} ${call.title ?? ""} ${raw}`;
+function contentEntries(content: unknown): Array<Record<string, unknown>> {
+  return Array.isArray(content) ? content.filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object") : [];
 }
 
-function rootsContain(roots: string[], candidate: string): boolean {
+function entryText(entry: Record<string, unknown>): string | undefined {
+  if (entry.type !== "content") return undefined;
+  const inner = entry.content as { type?: string; text?: string } | undefined;
+  return inner?.type === "text" ? inner.text : undefined;
+}
+
+export function extractAction(content: unknown): ExtractedAction {
+  const entries = contentEntries(content);
+  const diffPaths = entries
+    .filter((entry) => entry.type === "diff" && typeof entry.path === "string")
+    .map((entry) => entry.path as string);
+  const approval = entries
+    .map(entryText)
+    .filter((text): text is string => typeof text === "string" && text.startsWith(APPROVAL_PREFIX))
+    .map((text) => text.slice(APPROVAL_PREFIX.length).trim())
+    .at(-1);
+  const extracted: ExtractedAction = { action: approval, diffPaths, truncated: false };
+  if (!approval) return extracted;
+  extracted.truncated = /[…]$/.test(approval) || approval.endsWith("...");
+  const running = /^(?:Running|Starting background):\s*([\s\S]+)$/.exec(approval);
+  if (running) {
+    extracted.command = running[1]!.replace(/[…]$/, "").trim();
+    return extracted;
+  }
+  const filed = /^(?:Writing|Editing|Reading media:|Reading)\s+([\s\S]+)$/.exec(approval);
+  if (filed) {
+    extracted.targetPath = filed[1]!.trim();
+    return extracted;
+  }
+  const called = /^Call\s+(\S+)/.exec(approval);
+  if (called) extracted.mcpTool = called[1];
+  return extracted;
+}
+
+function insideRoots(roots: string[], candidate: string): boolean {
   const resolved = path.resolve(candidate).toLowerCase();
   return roots.some((root) => {
     const base = path.resolve(root).toLowerCase();
@@ -38,67 +103,99 @@ function rootsContain(roots: string[], candidate: string): boolean {
   });
 }
 
-function pathValues(value: unknown, key = ""): string[] {
-  if (typeof value === "string" && /^(?:path|file|cwd|directory|destination|source)$/i.test(key)) return [value];
-  if (Array.isArray(value)) return value.flatMap((entry) => pathValues(entry, key));
-  if (value && typeof value === "object") return Object.entries(value).flatMap(([childKey, entry]) => pathValues(entry, childKey));
-  return [];
+function absoluteCandidates(command: string): string[] {
+  const matches = [
+    ...command.matchAll(/["']([A-Za-z]:[\\/][^"']+)["']/g),
+    ...command.matchAll(/(?:^|\s)([A-Za-z]:[\\/][^\s;&|"']+)/g),
+    ...command.matchAll(/(?:^|\s)(\/[a-zA-Z]\/[^\s;&|"']+)/g)
+  ];
+  return [...new Set(matches.map((match) => match[1]!).map((value) => /^\/[a-zA-Z]\//.test(value) ? `${value[1]}:${value.slice(2)}` : value))];
 }
 
-function stringValues(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  if (Array.isArray(value)) return value.flatMap(stringValues);
-  if (value && typeof value === "object") return Object.values(value).flatMap(stringValues);
-  return [];
+function commandDecision(input: PolicyInput, command: string): PolicyDecision {
+  if (INTERPRETER_ESCAPE_PATTERN.test(command)) {
+    return { allow: false, reason: "Alternate interpreter escapes the shell guard", rule: "interpreter-escape" };
+  }
+  if (REMOTE_MUTATION_PATTERNS.some((pattern) => pattern.test(command))) {
+    return { allow: false, reason: "GitHub or remote Git mutation is main-agent-only", rule: "remote-mutation" };
+  }
+  if (CREDENTIAL_PATTERNS.some((pattern) => pattern.test(command))) {
+    return { allow: false, reason: "Credential export or credential file access blocked", rule: "credential" };
+  }
+  if (!input.allowDelete && DELETE_PATTERNS.some((pattern) => pattern.test(command))) {
+    return { allow: false, reason: "Permanent deletion was not explicitly delegated", rule: "deletion" };
+  }
+  if (DESTRUCTIVE_GIT_PATTERNS.some((pattern) => pattern.test(command))) {
+    return { allow: false, reason: "Destructive Git command blocked", rule: "destructive-git" };
+  }
+  if (!input.allowCommit && COMMIT_PATTERN.test(command)) {
+    return { allow: false, reason: "Local commit was not explicitly delegated", rule: "commit" };
+  }
+  for (const candidate of absoluteCandidates(command)) {
+    if (!insideRoots(input.roots, candidate)) {
+      return { allow: false, reason: `Path outside granted roots referenced by shell command: ${candidate}`, rule: "workspace-escape" };
+    }
+  }
+  return { allow: true, reason: "Shell command permitted; full text is enforced by the shell guard", rule: "shell-allow" };
 }
 
-function commandPaths(call: ToolCall | ToolCallUpdate): string[] {
-  const values = [call.title ?? "", ...stringValues(call.rawInput)];
-  const output: string[] = [];
-  for (const value of values) {
-    for (const match of value.matchAll(/["']([A-Za-z]:[\\/][^"']+)["']/g)) output.push(match[1]!);
-    for (const match of value.matchAll(/(?:^|\s)([A-Za-z]:[\\/][^\s;&|]+)/g)) output.push(match[1]!);
+function pathDecision(input: PolicyInput, candidates: string[]): PolicyDecision {
+  if (candidates.length === 0) {
+    return { allow: false, reason: "File mutation without an identifiable target path is refused", rule: "unresolved-path" };
   }
-  return [...new Set(output)];
+  for (const candidate of candidates) {
+    const resolved = path.isAbsolute(candidate) ? candidate : path.resolve(input.workspace, candidate);
+    if (!insideRoots(input.roots, resolved)) {
+      return { allow: false, reason: `File mutation outside granted roots blocked: ${resolved}`, rule: "workspace-escape" };
+    }
+  }
+  return { allow: true, reason: "File mutation inside granted roots", rule: "edit-allow" };
 }
 
-export function decideTool(jobType: JobType, call: ToolCall | ToolCallUpdate, roots: string[], allowCommit: boolean): PolicyDecision {
-  const kind: ToolKind | null | undefined = call.kind;
-  const text = stringifyTool(call);
-  const shellPaths = commandPaths(call);
-  const locations = [...(call.locations ?? []).map((location) => location.path), ...pathValues(call.rawInput), ...shellPaths];
-  if (["edit", "move", "delete"].includes(kind ?? "other") && (locations.length === 0 || locations.some((candidate) => !path.isAbsolute(candidate)))) {
-    return { allow: false, reason: "Mutating file operations require absolute paths inside granted roots" };
+export function decidePermission(input: PolicyInput): PolicyDecision {
+  const extracted = extractAction(input.content);
+  const toolName = input.toolName.trim();
+
+  if (toolName.startsWith("mcp__") || extracted.mcpTool?.startsWith("mcp__")) {
+    return { allow: false, reason: "MCP tools are not available to delegated Kimi jobs", rule: "mcp-blocked" };
   }
-  if (locations.some((candidate) => path.isAbsolute(candidate) && !rootsContain(roots, candidate))) {
-    return { allow: false, reason: "Workspace escape blocked" };
+  if (/^Deleting cron/i.test(extracted.action ?? "")) {
+    return { allow: false, reason: "Scheduled task mutation is main-agent-only", rule: "cron-blocked" };
   }
-  if (kind === "execute" && FILE_WRITE_COMMAND_PATTERN.test(text) && shellPaths.length === 0) {
-    return { allow: false, reason: "Shell file writes require an absolute path inside granted roots" };
+
+  const shell = SHELL_TOOLS.has(toolName) || input.kind === "execute" || Boolean(extracted.command);
+  const edit = EDIT_TOOLS.has(toolName) || (!shell && ["edit", "move", "delete"].includes(input.kind ?? ""));
+
+  if (input.jobType !== "execute") {
+    if (shell) return { allow: false, reason: `${input.jobType} job: command execution is denied`, rule: "read-only-job" };
+    if (edit) return { allow: false, reason: `${input.jobType} job: file mutation is denied`, rule: "read-only-job" };
+    if (READ_ONLY_TOOLS.has(toolName)) {
+      return pathDecision({ ...input }, extracted.targetPath ? [extracted.targetPath] : [input.workspace]);
+    }
+    return { allow: false, reason: `${input.jobType} job: unrecognised tool "${toolName}" is refused`, rule: "fail-closed" };
   }
-  if (kind === "delete" || DELETE_PATTERNS.some((pattern) => pattern.test(text))) {
-    return { allow: false, reason: "Permanent deletion or destructive Git blocked" };
+
+  if (shell) {
+    if (!extracted.command) {
+      return { allow: false, reason: "Shell approval without readable command text is refused", rule: "fail-closed" };
+    }
+    return commandDecision(input, extracted.command);
   }
-  if (REMOTE_MUTATION_PATTERNS.some((pattern) => pattern.test(text))) {
-    return { allow: false, reason: "GitHub or remote Git mutation is main-agent-only" };
+  if (edit) {
+    const candidates = extracted.diffPaths.length > 0 ? extracted.diffPaths : extracted.targetPath ? [extracted.targetPath] : [];
+    return pathDecision(input, candidates);
   }
-  if (CREDENTIAL_PATTERNS.some((pattern) => pattern.test(text))) {
-    return { allow: false, reason: "Credential export blocked" };
+  if (READ_ONLY_TOOLS.has(toolName)) {
+    return pathDecision(input, extracted.targetPath ? [extracted.targetPath] : [input.workspace]);
   }
-  if (COMMIT_PATTERN.test(text) && !allowCommit) {
-    return { allow: false, reason: "Local commit was not explicitly delegated" };
+  if (!extracted.action) {
+    return { allow: false, reason: `Tool "${toolName}" requested approval without a readable action description`, rule: "fail-closed" };
   }
-  if (jobType === "analyze" && !["read", "search", "think", "fetch", "other", undefined, null].includes(kind)) {
-    return { allow: false, reason: "Analyze jobs allow read/search only; edits and command execution are denied" };
-  }
-  if (jobType === "plan" && ["edit", "delete", "move"].includes(kind ?? "other")) {
-    return { allow: false, reason: "Plan jobs cannot modify files" };
-  }
-  return { allow: true, reason: "Allowed by guarded allow-unless-blocked policy" };
+  return { allow: false, reason: `Tool "${toolName}" is not delegated to Kimi jobs`, rule: "fail-closed" };
 }
 
 export function selectPermission(request: RequestPermissionRequest, allow: boolean): { outcome: "cancelled" } | { outcome: "selected"; optionId: string } {
-  const preferred = allow ? ["allow_once", "allow_always"] : ["reject_once", "reject_always"];
+  const preferred = allow ? ["allow_once"] : ["reject_once", "reject_always"];
   const option = preferred.flatMap((kind) => request.options.filter((candidate) => candidate.kind === kind))[0];
   return option ? { outcome: "selected", optionId: option.optionId } : { outcome: "cancelled" };
 }
