@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -30,5 +30,17 @@ describe("record store", () => {
     const stored = await store.get(id);
     expect(stored?.progress).toMatch(/^chunk-\d+$/);
     expect(stored?.id).toBe(id);
+  });
+
+  it("expires records and recovery data after seven days", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "kimi-store-retention-"));
+    roots.push(root);
+    const store = new RecordStore(root);
+    const id = "88888888-8888-4888-8888-888888888888";
+    const old = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    await store.save({ ...record(id), createdAt: old, updatedAt: old });
+    await mkdir(path.join(store.recoveryDir, id), { recursive: true });
+    expect(await store.cleanup()).toBe(1);
+    expect(await store.get(id)).toBeUndefined();
   });
 });

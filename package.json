@@ -9,11 +9,12 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "security:scan": "node scripts/security-scan.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "validate": "npm run lint && npm run typecheck && npm test && npm run build"
+    "validate": "npm run lint && npm run typecheck && npm test && npm run build && npm run security:scan"
   },
   "dependencies": {
     "@agentclientprotocol/sdk": "1.3.0",

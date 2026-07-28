@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -47,6 +47,7 @@ describe("ACP runner", () => {
     const result = await runner.run("55555555-5555-4555-8555-555555555555", { task: "test", jobType: "execute", workspace });
     expect(result.finalMessage).toBe("permission:reject");
     expect(result.blockedActions[0]?.reason).toContain("deletion");
+    expect(await readFile(path.join(workspace, "fixture.txt"), "utf8")).toBe("safe\n");
   });
 
   it("cancels active session and process", async () => {
