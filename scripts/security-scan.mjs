@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import process from "node:process";
 
 const files = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard"], { encoding: "utf8" }).split(/\r?\n/).filter(Boolean);
@@ -12,7 +12,7 @@ const checks = [
 const allow = new Set(["scripts/security-scan.mjs"]);
 const findings = [];
 for (const file of files) {
-  if (allow.has(file) || /\.(?:png|jpg|jpeg|gif|ico|map)$/i.test(file)) continue;
+  if (!existsSync(file) || allow.has(file) || /\.(?:png|jpg|jpeg|gif|ico|map)$/i.test(file)) continue;
   const text = readFileSync(file, "utf8");
   for (const check of checks) if (check.pattern.test(text)) findings.push(`${file}: ${check.name}`);
 }

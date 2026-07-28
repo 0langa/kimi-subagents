@@ -10,10 +10,6 @@ surfaces:
   - name: kimi-subagents
     path: skills/kimi-subagents/SKILL.md
   commands:
-  - name: kimi-subagents
-    path: commands/kimi-subagents.md
-    providers:
-    - claude
   - name: kimi-mode
     path: commands/kimi-mode.md
     providers:
