@@ -80,6 +80,8 @@ describe("shell guard", () => {
     ["git push origin main", "remote git mutation"],
     ["gh pr create --title x", "GitHub or GitLab CLI"],
     ["git commit -m nope", "local commit"],
+    ["npm publish", "package publication"],
+    ["git config --global user.email evil@example.com", "global tool configuration"],
     ["powershell -Command ls", "alternate interpreter"],
     ["cat ~/.ssh/id_rsa", "credential file"],
     ["printenv", "credential or environment"],

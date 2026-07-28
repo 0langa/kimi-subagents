@@ -47,7 +47,14 @@ const DESTRUCTIVE_GIT_PATTERNS = [
 const REMOTE_MUTATION_PATTERNS = [
   /\bgit\s+push\b/i,
   /\bgit\s+remote\s+(?:add|set-url|remove|rename)\b/i,
-  /(?:^|[;&|\s(])(?:gh|glab|hub)(?:\s|$)/i
+  /(?:^|[;&|\s(])(?:gh|glab|hub)(?:\s|$)/i,
+  /\b(?:npm|yarn|pnpm|cargo|poetry|gem|dotnet)\s+publish\b/i,
+  /\btwine\s+upload\b/i,
+  /\b(?:npm|yarn|pnpm)\s+(?:login|adduser|token)\b/i
+];
+const GLOBAL_CONFIG_PATTERNS = [
+  /\bgit\s+config\s+(?:--global|--system)/i,
+  /\b(?:npm|yarn|pnpm)\s+config\s+set\b/i
 ];
 const CREDENTIAL_PATTERNS = [
   /(?:\.ssh\/|\.git-credentials|\.npmrc|\.aws\/credentials|\.kimi-code\/credentials|\.claude\/\.credentials|\.codex\/auth)/i,
@@ -117,7 +124,10 @@ function commandDecision(input: PolicyInput, command: string): PolicyDecision {
     return { allow: false, reason: "Alternate interpreter escapes the shell guard", rule: "interpreter-escape" };
   }
   if (REMOTE_MUTATION_PATTERNS.some((pattern) => pattern.test(command))) {
-    return { allow: false, reason: "GitHub or remote Git mutation is main-agent-only", rule: "remote-mutation" };
+    return { allow: false, reason: "Remote Git, GitHub or package publication is main-agent-only", rule: "remote-mutation" };
+  }
+  if (GLOBAL_CONFIG_PATTERNS.some((pattern) => pattern.test(command))) {
+    return { allow: false, reason: "Global tool configuration changes are blocked", rule: "global-config" };
   }
   if (CREDENTIAL_PATTERNS.some((pattern) => pattern.test(command))) {
     return { allow: false, reason: "Credential export or credential file access blocked", rule: "credential" };

@@ -100,6 +100,15 @@ kimi_guard_check() {
   if [[ "$cmd" =~ (^|[[:space:]\;\&\|\(])(gh|glab|hub)([[:space:]]|$) ]]; then
     kimi_guard_deny "GitHub or GitLab CLI is main-agent-only" "$raw"
   fi
+  if [[ "$cmd" =~ (npm|yarn|pnpm|cargo|poetry|gem|dotnet)[[:space:]]+publish ]] ||
+     [[ "$cmd" =~ twine[[:space:]]+upload ]] ||
+     [[ "$cmd" =~ (npm|yarn|pnpm)[[:space:]]+(login|adduser|token) ]]; then
+    kimi_guard_deny "package publication is main-agent-only" "$raw"
+  fi
+  if [[ "$cmd" =~ git[[:space:]]+config[[:space:]]+(--global|--system) ]] ||
+     [[ "$cmd" =~ (npm|yarn|pnpm)[[:space:]]+config[[:space:]]+set ]]; then
+    kimi_guard_deny "global tool configuration changes are blocked" "$raw"
+  fi
   if [[ "$KIMI_GUARD_DEPTH" -le 1 ]] && [[ "$cmd" =~ git[[:space:]]+commit([[:space:]]|$) ]] && [[ "$KIMI_GUARD_ALLOW_COMMIT" != "1" ]]; then
     kimi_guard_deny "local commit was not explicitly delegated" "$raw"
   fi

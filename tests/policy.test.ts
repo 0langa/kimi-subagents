@@ -73,6 +73,8 @@ describe("execute job decisions", () => {
     ["git reset --hard HEAD~1", "destructive-git"],
     ["git push origin main", "remote-mutation"],
     ["gh pr create --title x", "remote-mutation"],
+    ["npm publish --access public", "remote-mutation"],
+    ["git config --global user.email evil@example.com", "global-config"],
     ["powershell -Command ls", "interpreter-escape"],
     ["cat ~/.ssh/id_rsa", "credential"],
     ["printenv | grep TOKEN", "credential"]
