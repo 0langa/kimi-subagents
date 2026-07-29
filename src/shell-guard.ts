@@ -23,6 +23,8 @@ export interface GuardConfig {
   jobId: string;
   jobType: JobType;
   roots: string[];
+  readOnlyRoots: string[];
+  allowInterpreters: string[];
   allowCommit: boolean;
   allowDelete: boolean;
 }
@@ -59,6 +61,8 @@ export function renderBootstrap(config: GuardConfig, guardPath: string, logPath:
   return [
     `# kimi-subagents guard bootstrap (job ${config.jobId})`,
     `KIMI_GUARD_ROOTS=(${guardRoots(config.roots).map(shellSingleQuote).join(" ")})`,
+    `KIMI_GUARD_READ_ROOTS=(${guardRoots(config.readOnlyRoots).map(shellSingleQuote).join(" ")})`,
+    `KIMI_GUARD_ALLOW_INTERPRETERS=${shellSingleQuote(config.allowInterpreters.map((entry) => entry.trim().toLowerCase()).join(" "))}`,
     `KIMI_GUARD_JOB_TYPE=${shellSingleQuote(config.jobType)}`,
     `KIMI_GUARD_ALLOW_COMMIT='${config.allowCommit ? 1 : 0}'`,
     `KIMI_GUARD_ALLOW_DELETE='${config.allowDelete ? 1 : 0}'`,

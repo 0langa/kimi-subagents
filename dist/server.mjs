@@ -35205,6 +35205,8 @@ var APPROVAL_PREFIX = "Requesting approval to ";
 var READ_ONLY_TOOLS = /* @__PURE__ */ new Set(["Read", "Grep", "Glob", "ReadMediaFile", "TodoList", "SetTodoList", "TaskList", "TaskOutput", "CronList", "WebSearch", "FetchURL"]);
 var EDIT_TOOLS = /* @__PURE__ */ new Set(["Write", "Edit", "MultiEdit", "NotebookEdit", "StrReplaceFile", "WriteFile", "apply_patch"]);
 var SHELL_TOOLS = /* @__PURE__ */ new Set(["Bash", "BashOutput", "Shell", "Terminal"]);
+var TURN_CONTROL_TOOLS = /* @__PURE__ */ new Set(["ExitPlanMode", "EnterPlanMode", "TodoWrite"]);
+var INTERACTIVE_TOOLS = /* @__PURE__ */ new Set(["AskUserQuestion", "AskUser", "RequestUserInput"]);
 var DELETE_PATTERNS = [
   /(?:^|[;&|\s(])(?:rm|rmdir|shred|unlink|del|erase|remove-item)(?:\s|$)/i
 ];
@@ -35235,7 +35237,6 @@ var CREDENTIAL_PATTERNS = [
   /(?:^|[;&|\s(])(?:printenv|env)(?:\s|$)/i,
   /\$\{?[A-Za-z_]*(?:TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY)/i
 ];
-var INTERPRETER_ESCAPE_PATTERN = /(?:^|[;&|\s(])(?:powershell(?:\.exe)?|pwsh(?:\.exe)?|cmd(?:\.exe)?|wsl(?:\.exe)?)(?:\s|$)/i;
 var COMMIT_PATTERN = /\bgit\s+commit(?:\s|$)/i;
 function contentEntries(content) {
   return Array.isArray(content) ? content.filter((entry) => Boolean(entry) && typeof entry === "object") : [];
@@ -35273,6 +35274,17 @@ function insideRoots(roots, candidate) {
     return resolved === base || resolved.startsWith(`${base}${path2.sep}`);
   });
 }
+function truncatedRootPrefix(roots, candidate) {
+  const resolved = path2.resolve(candidate).toLowerCase();
+  return roots.some((root) => path2.resolve(root).toLowerCase().startsWith(resolved));
+}
+function interpreterDecision(command, allowed) {
+  const match = /(?:^|[;&|\s(])(powershell|pwsh|cmd|wsl)(?:\.exe)?(?:\s|$)/i.exec(command);
+  if (!match) return void 0;
+  const interpreter = match[1].toLowerCase();
+  if (allowed.map((entry) => entry.trim().toLowerCase()).includes(interpreter)) return void 0;
+  return { allow: false, reason: `Alternate interpreter escapes the shell guard: ${interpreter}`, rule: "interpreter-escape" };
+}
 function absoluteCandidates(command) {
   const matches = [
     ...command.matchAll(/["']([A-Za-z]:[\\/][^"']+)["']/g),
@@ -35282,9 +35294,8 @@ function absoluteCandidates(command) {
   return [...new Set(matches.map((match) => match[1]).map((value) => /^\/[a-zA-Z]\//.test(value) ? `${value[1]}:${value.slice(2)}` : value))];
 }
 function commandDecision(input, command) {
-  if (INTERPRETER_ESCAPE_PATTERN.test(command)) {
-    return { allow: false, reason: "Alternate interpreter escapes the shell guard", rule: "interpreter-escape" };
-  }
+  const interpreter = interpreterDecision(command, input.allowInterpreters);
+  if (interpreter) return interpreter;
   if (REMOTE_MUTATION_PATTERNS.some((pattern) => pattern.test(command))) {
     return { allow: false, reason: "Remote Git, GitHub or package publication is main-agent-only", rule: "remote-mutation" };
   }
@@ -35304,9 +35315,10 @@ function commandDecision(input, command) {
     return { allow: false, reason: "Local commit was not explicitly delegated", rule: "commit" };
   }
   for (const candidate of absoluteCandidates(command)) {
-    if (!insideRoots(input.roots, candidate)) {
-      return { allow: false, reason: `Path outside granted roots referenced by shell command: ${candidate}`, rule: "workspace-escape" };
-    }
+    if (insideRoots(input.roots, candidate)) continue;
+    if (insideRoots(input.readOnlyRoots, candidate)) continue;
+    if (truncatedRootPrefix(input.roots, candidate)) continue;
+    return { allow: false, reason: `Path outside granted roots referenced by shell command: ${candidate}`, rule: "workspace-escape" };
   }
   return { allow: true, reason: "Shell command permitted; full text is enforced by the shell guard", rule: "shell-allow" };
 }
@@ -35322,6 +35334,10 @@ function pathDecision(input, candidates) {
   }
   return { allow: true, reason: "File mutation inside granted roots", rule: "edit-allow" };
 }
+function readDecision(input, candidates) {
+  const roots = [...input.roots, ...input.readOnlyRoots];
+  return pathDecision({ ...input, roots }, candidates);
+}
 function decidePermission(input) {
   const extracted = extractAction(input.content);
   const toolName = input.toolName.trim();
@@ -35331,13 +35347,19 @@ function decidePermission(input) {
   if (/^Deleting cron/i.test(extracted.action ?? "")) {
     return { allow: false, reason: "Scheduled task mutation is main-agent-only", rule: "cron-blocked" };
   }
+  if (TURN_CONTROL_TOOLS.has(toolName)) {
+    return { allow: true, reason: "Turn control changes nothing outside the session", rule: "turn-control" };
+  }
+  if (INTERACTIVE_TOOLS.has(toolName)) {
+    return { allow: false, reason: "A delegated job has no interactive user; answer from the evidence you have", rule: "no-interactive-user" };
+  }
   const shell = SHELL_TOOLS.has(toolName) || input.kind === "execute" || Boolean(extracted.command);
   const edit = EDIT_TOOLS.has(toolName) || !shell && ["edit", "move", "delete"].includes(input.kind ?? "");
   if (input.jobType !== "execute") {
     if (shell) return { allow: false, reason: `${input.jobType} job: command execution is denied`, rule: "read-only-job" };
     if (edit) return { allow: false, reason: `${input.jobType} job: file mutation is denied`, rule: "read-only-job" };
     if (READ_ONLY_TOOLS.has(toolName)) {
-      return pathDecision({ ...input }, extracted.targetPath ? [extracted.targetPath] : [input.workspace]);
+      return readDecision(input, extracted.targetPath ? [extracted.targetPath] : [input.workspace]);
     }
     return { allow: false, reason: `${input.jobType} job: unrecognised tool "${toolName}" is refused`, rule: "fail-closed" };
   }
@@ -35352,7 +35374,7 @@ function decidePermission(input) {
     return pathDecision(input, candidates);
   }
   if (READ_ONLY_TOOLS.has(toolName)) {
-    return pathDecision(input, extracted.targetPath ? [extracted.targetPath] : [input.workspace]);
+    return readDecision(input, extracted.targetPath ? [extracted.targetPath] : [input.workspace]);
   }
   if (!extracted.action) {
     return { allow: false, reason: `Tool "${toolName}" requested approval without a readable action description`, rule: "fail-closed" };
@@ -35449,6 +35471,7 @@ var DEFAULT_EFFORT = {
 var DEFAULT_STALL_SECONDS = 900;
 
 // src/acp-runner.ts
+var DENIAL_DEADLOCK_LIMIT = 4;
 function versionTuple(value) {
   const match = value.match(/(\d+)\.(\d+)\.(\d+)/);
   return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : void 0;
@@ -35572,7 +35595,7 @@ var AcpRunner = class {
     const client2 = { requestPermission: () => ({ outcome: { outcome: "cancelled" } }), sessionUpdate: () => void 0 };
     const connection = new ClientSideConnection(() => client2, childStream(child));
     try {
-      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.3.0" } });
+      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.3.1" } });
       const session = await connection.newSession({ cwd: workspace, mcpServers: [] });
       result2.kimi.authenticated = true;
       result2.acp = { protocolVersion: initialized.protocolVersion, sessionCreated: Boolean(session.sessionId), capabilities: initialized.agentCapabilities };
@@ -35590,12 +35613,16 @@ var AcpRunner = class {
   }
   async run(jobId, input, callbacks = {}) {
     const roots = [input.workspace, ...input.additionalRoots ?? []];
+    const readOnlyRoots = input.readOnlyRoots ?? [];
+    const allowInterpreters = input.allowInterpreters ?? [];
     let guard;
     try {
       guard = await this.shellGuard?.prepare({
         jobId,
         jobType: input.jobType,
         roots,
+        readOnlyRoots,
+        allowInterpreters,
         allowCommit: Boolean(input.allowCommit),
         allowDelete: Boolean(input.allowDelete)
       });
@@ -35611,6 +35638,8 @@ var AcpRunner = class {
     const tools = /* @__PURE__ */ new Map();
     const blockedActions = [];
     const toolViolations = [];
+    const denialCounts = /* @__PURE__ */ new Map();
+    let deadlock;
     let finalMessage = "";
     let usage;
     const client2 = {
@@ -35640,6 +35669,8 @@ var AcpRunner = class {
           kind: cached2?.kind ?? call.kind,
           content: request.toolCall.content,
           roots,
+          readOnlyRoots,
+          allowInterpreters,
           workspace: input.workspace,
           allowCommit: Boolean(input.allowCommit),
           allowDelete: Boolean(input.allowDelete)
@@ -35650,6 +35681,14 @@ var AcpRunner = class {
           await this.recovery.backupBeforeWrite(jobId, targets);
         }
         if (!decision.allow) {
+          const key = `${call.title ?? "unknown"}|${decision.rule}`;
+          const seen = (denialCounts.get(key) ?? 0) + 1;
+          denialCounts.set(key, seen);
+          if (seen >= DENIAL_DEADLOCK_LIMIT && !deadlock) {
+            deadlock = `${call.title ?? "unknown tool"} was refused ${seen} times (${decision.rule}); the job cannot make progress`;
+            await callbacks.onProgress?.(`policy deadlock: ${deadlock}`);
+            void this.cancel(jobId);
+          }
           blockedActions.push({
             toolCallId: call.toolCallId,
             title: redact(call.title ?? "Unknown tool"),
@@ -35670,7 +35709,7 @@ var AcpRunner = class {
       const initialized = await connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { plan: {} },
-        clientInfo: { name: "kimi-subagents", version: "0.3.0" }
+        clientInfo: { name: "kimi-subagents", version: "0.3.1" }
       });
       const session = await connection.newSession({ cwd: input.workspace, additionalDirectories: input.additionalRoots ?? [], mcpServers: [] });
       sessionId = session.sessionId;
@@ -35699,13 +35738,14 @@ var AcpRunner = class {
         blockedActions,
         shellCommands,
         toolViolations,
+        deadlock,
         diagnostics: diagnostics ? redact(diagnostics) : void 0,
         capabilities: initialized.agentCapabilities
       };
     } catch (error51) {
       if (this.cancelling.has(jobId)) {
         const shellCommands = await collectShellCommands(guard, blockedActions);
-        return { sessionId, stopReason: "cancelled", finalMessage: redact(finalMessage), usage, blockedActions, shellCommands, toolViolations, diagnostics: diagnostics ? redact(diagnostics) : void 0, capabilities: {} };
+        return { sessionId, stopReason: "cancelled", finalMessage: redact(finalMessage), usage, blockedActions, shellCommands, toolViolations, deadlock, diagnostics: diagnostics ? redact(diagnostics) : void 0, capabilities: {} };
       }
       throw error51;
     } finally {
@@ -35919,6 +35959,8 @@ async function usagePulseHooks(source) {
     return "";
   }
   const posix = root.replaceAll("\\", "/");
+  const venv = await [`${root}\\.venv\\Scripts\\python.exe`, `${root}/.venv/bin/python`].reduce(async (found, candidate) => await found ?? await stat(candidate).then(() => candidate).catch(() => void 0), Promise.resolve(void 0));
+  const launcher = venv ? `"${venv.replaceAll("\\", "/")}"` : `uv run --project "${posix}" python`;
   const events = [
     ["SessionStart", "session_start.py", "startup|resume"],
     ["UserPromptSubmit", "user_prompt_submit.py"],
@@ -35930,8 +35972,8 @@ async function usagePulseHooks(source) {
     "[[hooks]]",
     `event = "${event}"`,
     ...matcher ? [`matcher = "${matcher}"`] : [],
-    `command = "uv run --project \\"${posix}\\" python \\"${posix}/hooks/${script}\\" ${event} --provider kimi"`,
-    "timeout = 20",
+    `command = "${`${launcher} "${posix}/hooks/${script}" ${event} --provider kimi`.replaceAll('"', '\\"')}"`,
+    "timeout = 30",
     ""
   ].join("\n")).join("\n");
 }
@@ -36224,6 +36266,8 @@ function renderBootstrap(config2, guardPath, logPath) {
   return [
     `# kimi-subagents guard bootstrap (job ${config2.jobId})`,
     `KIMI_GUARD_ROOTS=(${guardRoots(config2.roots).map(shellSingleQuote).join(" ")})`,
+    `KIMI_GUARD_READ_ROOTS=(${guardRoots(config2.readOnlyRoots).map(shellSingleQuote).join(" ")})`,
+    `KIMI_GUARD_ALLOW_INTERPRETERS=${shellSingleQuote(config2.allowInterpreters.map((entry) => entry.trim().toLowerCase()).join(" "))}`,
     `KIMI_GUARD_JOB_TYPE=${shellSingleQuote(config2.jobType)}`,
     `KIMI_GUARD_ALLOW_COMMIT='${config2.allowCommit ? 1 : 0}'`,
     `KIMI_GUARD_ALLOW_DELETE='${config2.allowDelete ? 1 : 0}'`,
@@ -36512,6 +36556,8 @@ var JobManager = class {
       allowDelete: Boolean(input.allowDelete),
       allowNetwork: Boolean(input.allowNetwork),
       allowSubagents: Boolean(input.allowSubagents),
+      readOnlyRoots: input.readOnlyRoots ?? [],
+      allowInterpreters: input.allowInterpreters ?? [],
       trackUsage: Boolean(input.trackUsage ?? process.env.KIMI_SUBAGENTS_USAGE_PULSE === "1"),
       model: input.model,
       effort: input.effort ?? DEFAULT_EFFORT[input.jobType],
@@ -36560,6 +36606,11 @@ ${task}`
       allowDirty: overrides.allowDirty ?? true,
       allowCommit: overrides.allowCommit ?? parent.allowCommit,
       allowDelete: overrides.allowDelete ?? parent.allowDelete,
+      allowNetwork: overrides.allowNetwork ?? parent.allowNetwork,
+      allowSubagents: overrides.allowSubagents ?? parent.allowSubagents,
+      readOnlyRoots: overrides.readOnlyRoots ?? parent.readOnlyRoots,
+      allowInterpreters: overrides.allowInterpreters ?? parent.allowInterpreters,
+      trackUsage: overrides.trackUsage ?? parent.trackUsage,
       model: overrides.model ?? parent.model,
       effort: overrides.effort ?? parent.effort,
       timeoutSeconds: overrides.timeoutSeconds ?? parent.timeoutSeconds,
@@ -36672,8 +36723,9 @@ ${task}`
       const cancelled = latest?.status === "cancelled" || result2.stopReason === "cancelled";
       const emptyResult = !cancelled && !result2.finalMessage.trim();
       const forbiddenTool = result2.toolViolations.find((violation) => violation.cancelled);
+      const deadlock = result2.deadlock;
       await this.update(jobId, {
-        status: lastProgress.stalled || forbiddenTool ? "failed" : cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
+        status: lastProgress.stalled || forbiddenTool || deadlock ? "failed" : cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
         stopReason: result2.stopReason,
         finalMessage: result2.finalMessage,
         diagnostics: result2.diagnostics,
@@ -36686,7 +36738,7 @@ ${task}`
         diffSummary: readOnlyViolation ? `READ-ONLY VIOLATION: ${diff.summary}` : diff.summary,
         diffPatch: input.jobType === "execute" ? patchOf(await workspacePatch(input.workspace, baselineCommit)) : void 0,
         resultingCommit: diff.head,
-        error: forbiddenTool ? `Job stopped by runtime policy: ${forbiddenTool.reason}` : lastProgress.stalled ? `Job cancelled after ${stallSeconds}s without Kimi activity.` : readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy." : emptyResult ? "Kimi ACP returned no final message; result rejected." : void 0,
+        error: deadlock ? `Job stopped after a policy deadlock: ${deadlock}` : forbiddenTool ? `Job stopped by runtime policy: ${forbiddenTool.reason}` : lastProgress.stalled ? `Job cancelled after ${stallSeconds}s without Kimi activity.` : readOnlyViolation ? "Analyze/plan job changed workspace despite read-only policy." : emptyResult ? "Kimi ACP returned no final message; result rejected." : void 0,
         finishedAt: (/* @__PURE__ */ new Date()).toISOString(),
         progress: lastProgress.stalled ? "Stalled" : cancelled ? "Cancelled" : "Finished"
       });
@@ -36745,7 +36797,7 @@ ${task}`
 };
 
 // src/server.ts
-var SERVER_VERSION = "0.3.0";
+var SERVER_VERSION = "0.3.1";
 function result(value) {
   const structuredContent = { result: value };
   return { content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }], structuredContent };
@@ -36818,6 +36870,8 @@ function createServer(manager = new JobManager()) {
       allowDelete: external_exports.boolean().optional().describe("True only when the delegated task explicitly requires deleting files inside the granted roots."),
       allowNetwork: external_exports.boolean().optional().describe("Permit Kimi's own FetchURL/WebSearch. Off by default: a network call otherwise stops the job as a policy violation."),
       allowSubagents: external_exports.boolean().optional().describe("Permit nested Kimi agents. Off by default, in which case Agent and AgentSwarm fail immediately."),
+      readOnlyRoots: external_exports.array(external_exports.string()).max(8).optional().describe("Absolute paths the job may read but never write, for example a reference directory outside the workspace."),
+      allowInterpreters: external_exports.array(external_exports.enum(["pwsh", "powershell", "cmd", "wsl"])).max(4).optional().describe("Interpreters the job may launch. Off by default; needed for PowerShell or .NET work, since the guard cannot inspect commands inside them."),
       trackUsage: external_exports.boolean().optional().describe("Record this job in the separately installed Usage Pulse plugin. Off unless requested or KIMI_SUBAGENTS_USAGE_PULSE=1."),
       maxSteps: external_exports.number().int().min(1).max(1e3).optional().describe("Hard ceiling on Kimi loop steps per turn. Defaults to 200."),
       timeoutSeconds: external_exports.number().int().min(5).max(86400).optional().describe("No timeout when omitted."),
@@ -36843,6 +36897,10 @@ function createServer(manager = new JobManager()) {
       jobType: external_exports.enum(["analyze", "plan", "execute"]).optional(),
       allowCommit: external_exports.boolean().optional(),
       allowDelete: external_exports.boolean().optional(),
+      allowNetwork: external_exports.boolean().optional(),
+      allowSubagents: external_exports.boolean().optional(),
+      readOnlyRoots: external_exports.array(external_exports.string()).max(8).optional(),
+      allowInterpreters: external_exports.array(external_exports.enum(["pwsh", "powershell", "cmd", "wsl"])).max(4).optional(),
       effort: external_exports.enum(["low", "high", "max"]).optional(),
       policyMode: external_exports.enum(["manual", "ask", "auto"]).optional()
     },

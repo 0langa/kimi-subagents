@@ -7,7 +7,7 @@ import { JobManager } from "./job-manager.js";
 import { safeError } from "./redaction.js";
 import type { JobRecord, StartJobInput } from "./types.js";
 
-export const SERVER_VERSION = "0.3.0";
+export const SERVER_VERSION = "0.3.1";
 
 function result(value: unknown) {
   const structuredContent = { result: value };
@@ -86,6 +86,8 @@ export function createServer(manager = new JobManager()): { server: McpServer; m
       allowDelete: z.boolean().optional().describe("True only when the delegated task explicitly requires deleting files inside the granted roots."),
       allowNetwork: z.boolean().optional().describe("Permit Kimi's own FetchURL/WebSearch. Off by default: a network call otherwise stops the job as a policy violation."),
       allowSubagents: z.boolean().optional().describe("Permit nested Kimi agents. Off by default, in which case Agent and AgentSwarm fail immediately."),
+      readOnlyRoots: z.array(z.string()).max(8).optional().describe("Absolute paths the job may read but never write, for example a reference directory outside the workspace."),
+      allowInterpreters: z.array(z.enum(["pwsh", "powershell", "cmd", "wsl"])).max(4).optional().describe("Interpreters the job may launch. Off by default; needed for PowerShell or .NET work, since the guard cannot inspect commands inside them."),
       trackUsage: z.boolean().optional().describe("Record this job in the separately installed Usage Pulse plugin. Off unless requested or KIMI_SUBAGENTS_USAGE_PULSE=1."),
       maxSteps: z.number().int().min(1).max(1_000).optional().describe("Hard ceiling on Kimi loop steps per turn. Defaults to 200."),
       timeoutSeconds: z.number().int().min(5).max(86_400).optional().describe("No timeout when omitted."),
@@ -108,6 +110,10 @@ export function createServer(manager = new JobManager()): { server: McpServer; m
       jobType: z.enum(["analyze", "plan", "execute"]).optional(),
       allowCommit: z.boolean().optional(),
       allowDelete: z.boolean().optional(),
+      allowNetwork: z.boolean().optional(),
+      allowSubagents: z.boolean().optional(),
+      readOnlyRoots: z.array(z.string()).max(8).optional(),
+      allowInterpreters: z.array(z.enum(["pwsh", "powershell", "cmd", "wsl"])).max(4).optional(),
       effort: z.enum(["low", "high", "max"]).optional(),
       policyMode: z.enum(["manual", "ask", "auto"]).optional()
     },

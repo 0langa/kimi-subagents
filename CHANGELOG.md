@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.3.1
+
+Fixes found by the first real delegated runs on Claude Code and Codex. Both runs
+completed their task; both hit policy defects that made the delegate far less
+useful than it should be.
+
+### Fixed
+
+- **Plan jobs could not deliver a plan.** `ExitPlanMode` was refused as an unrecognised tool, so Kimi resubmitted it 28 times over 21 minutes before the host cancelled the job. Turn-control tools (`ExitPlanMode`, `EnterPlanMode`, `TodoWrite`) change nothing outside the session and are now allowed in every job type.
+- **A refused tool could spin forever.** The stall detector only watches for silence, and Kimi was busy retrying. The broker now stops a job after the same tool is refused four times, reporting `Job stopped after a policy deadlock: ...`.
+- **The workspace root could be refused as an escape.** Kimi truncates command previews at 50 characters, which cuts a long root mid-name; the fragment failed the prefix test and the job lost the shell entirely (zero commands executed in both observed runs). A candidate path that is a prefix of a granted root is now treated as truncation and deferred to the shell guard, which sees the full command.
+- **`AskUserQuestion` is refused with its own rule** (`no-interactive-user`) instead of looking like an unknown tool; a delegated job has no user to ask.
+- **The shell guard only checked the first absolute path in a command.** It now checks every one.
+- **Follow-up jobs dropped capability flags.** `allowNetwork`, `allowSubagents`, `readOnlyRoots`, `allowInterpreters` and `trackUsage` are inherited from the parent job.
+- **Usage Pulse hooks never fired.** `uv run` re-resolves the environment under the relocated HOME and overran the hook timeout; the hooks now use the plugin's own interpreter when it has one.
+
+### Added
+
+- `readOnlyRoots`: absolute paths a job may read but never write. Reads outside the workspace previously had no grant path at all.
+- `allowInterpreters`: opt-in list (`pwsh`, `powershell`, `cmd`, `wsl`). Without it a delegated job on Windows can write PowerShell but never run it, which is how the first run shipped five failing tests.
+
+
 ## 0.3.0
 
 Closes the three gaps 0.2.0 documented as open: self-approved Kimi tools, missing usage data, and an unclear sandbox stance.

@@ -22,6 +22,12 @@ export async function usagePulseHooks(source: string): Promise<string> {
     return "";
   }
   const posix = root.replaceAll("\\", "/");
+  // The delegated process runs with a relocated HOME, so `uv run` re-resolves the
+  // environment and overruns the hook timeout. Use the plugin's own interpreter
+  // when it has one and keep uv only as the fallback.
+  const venv = await [`${root}\\.venv\\Scripts\\python.exe`, `${root}/.venv/bin/python`]
+    .reduce<Promise<string | undefined>>(async (found, candidate) => (await found) ?? (await stat(candidate).then(() => candidate).catch(() => undefined)), Promise.resolve(undefined));
+  const launcher = venv ? `"${venv.replaceAll("\\", "/")}"` : `uv run --project "${posix}" python`;
   const events: Array<[string, string, string?]> = [
     ["SessionStart", "session_start.py", "startup|resume"],
     ["UserPromptSubmit", "user_prompt_submit.py"],
@@ -33,8 +39,8 @@ export async function usagePulseHooks(source: string): Promise<string> {
     "[[hooks]]",
     `event = "${event}"`,
     ...(matcher ? [`matcher = "${matcher}"`] : []),
-    `command = "uv run --project \\"${posix}\\" python \\"${posix}/hooks/${script}\\" ${event} --provider kimi"`,
-    "timeout = 20",
+    `command = "${`${launcher} "${posix}/hooks/${script}" ${event} --provider kimi`.replaceAll('"', '\\"')}"`,
+    "timeout = 30",
     ""
   ].join("\n")).join("\n");
 }

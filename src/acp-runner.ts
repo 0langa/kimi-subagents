@@ -25,6 +25,10 @@ import { runFile, sanitizedChildEnv, terminateProcessTree } from "./process.js";
 import type { PreparedGuard, ShellGuard } from "./shell-guard.js";
 import { DEFAULT_EFFORT, type BlockedAction, type PreflightResult, type RunResult, type ShellCommandRecord, type StartJobInput, type ToolViolation } from "./types.js";
 
+// Kimi re-submits a refused tool call indefinitely; without a ceiling a plan job
+// spent 21 minutes retrying ExitPlanMode 28 times before the host cancelled it.
+const DENIAL_DEADLOCK_LIMIT = 4;
+
 interface ActiveConnection { child: ChildProcessWithoutNullStreams; connection: ClientSideConnection; sessionId?: string }
 interface RunnerCallbacks { onSession?: (sessionId: string) => Promise<void>; onProgress?: (progress: string) => Promise<void> }
 
@@ -154,7 +158,7 @@ export class AcpRunner {
     const client: Client = { requestPermission: () => ({ outcome: { outcome: "cancelled" } }), sessionUpdate: () => undefined };
     const connection = new ClientSideConnection(() => client, childStream(child));
     try {
-      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.3.0" } });
+      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.3.1" } });
       const session = await connection.newSession({ cwd: workspace, mcpServers: [] });
       result.kimi.authenticated = true;
       result.acp = { protocolVersion: initialized.protocolVersion, sessionCreated: Boolean(session.sessionId), capabilities: initialized.agentCapabilities };
@@ -173,12 +177,16 @@ export class AcpRunner {
 
   async run(jobId: string, input: StartJobInput, callbacks: RunnerCallbacks = {}): Promise<RunResult> {
     const roots = [input.workspace, ...(input.additionalRoots ?? [])];
+    const readOnlyRoots = input.readOnlyRoots ?? [];
+    const allowInterpreters = input.allowInterpreters ?? [];
     let guard: PreparedGuard | undefined;
     try {
       guard = await this.shellGuard?.prepare({
         jobId,
         jobType: input.jobType,
         roots,
+        readOnlyRoots,
+        allowInterpreters,
         allowCommit: Boolean(input.allowCommit),
         allowDelete: Boolean(input.allowDelete)
       });
@@ -192,6 +200,8 @@ export class AcpRunner {
     const tools = new Map<string, ToolCall | ToolCallUpdate>();
     const blockedActions: BlockedAction[] = [];
     const toolViolations: ToolViolation[] = [];
+    const denialCounts = new Map<string, number>();
+    let deadlock: string | undefined;
     let finalMessage = "";
     let usage: Usage | undefined;
 
@@ -222,6 +232,8 @@ export class AcpRunner {
           kind: cached?.kind ?? call.kind,
           content: request.toolCall.content,
           roots,
+          readOnlyRoots,
+          allowInterpreters,
           workspace: input.workspace,
           allowCommit: Boolean(input.allowCommit),
           allowDelete: Boolean(input.allowDelete)
@@ -232,6 +244,14 @@ export class AcpRunner {
           await this.recovery.backupBeforeWrite(jobId, targets);
         }
         if (!decision.allow) {
+          const key = `${call.title ?? "unknown"}|${decision.rule}`;
+          const seen = (denialCounts.get(key) ?? 0) + 1;
+          denialCounts.set(key, seen);
+          if (seen >= DENIAL_DEADLOCK_LIMIT && !deadlock) {
+            deadlock = `${call.title ?? "unknown tool"} was refused ${seen} times (${decision.rule}); the job cannot make progress`;
+            await callbacks.onProgress?.(`policy deadlock: ${deadlock}`);
+            void this.cancel(jobId);
+          }
           blockedActions.push({
             toolCallId: call.toolCallId,
             title: redact(call.title ?? "Unknown tool"),
@@ -252,7 +272,7 @@ export class AcpRunner {
       const initialized: InitializeResponse = await connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { plan: {} },
-        clientInfo: { name: "kimi-subagents", version: "0.3.0" }
+        clientInfo: { name: "kimi-subagents", version: "0.3.1" }
       });
       const session = await connection.newSession({ cwd: input.workspace, additionalDirectories: input.additionalRoots ?? [], mcpServers: [] });
       sessionId = session.sessionId;
@@ -280,13 +300,14 @@ export class AcpRunner {
         blockedActions,
         shellCommands,
         toolViolations,
+        deadlock,
         diagnostics: diagnostics ? redact(diagnostics) : undefined,
         capabilities: initialized.agentCapabilities
       };
     } catch (error) {
       if (this.cancelling.has(jobId)) {
         const shellCommands = await collectShellCommands(guard, blockedActions);
-        return { sessionId, stopReason: "cancelled", finalMessage: redact(finalMessage), usage, blockedActions, shellCommands, toolViolations, diagnostics: diagnostics ? redact(diagnostics) : undefined, capabilities: {} };
+        return { sessionId, stopReason: "cancelled", finalMessage: redact(finalMessage), usage, blockedActions, shellCommands, toolViolations, deadlock, diagnostics: diagnostics ? redact(diagnostics) : undefined, capabilities: {} };
       }
       throw error;
     } finally {

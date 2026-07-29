@@ -56,6 +56,15 @@ Kimi approves some of its own tools and never asks the client: `Read`, `Grep`, `
 
 That is detection plus termination, not prevention: a single request may leave the machine before the cancel lands. Do not put secrets in task text, and treat `allowNetwork: false` as "the job must not need the network", not as an airtight egress block.
 
+## Deadlocks and truncation
+
+Two properties keep fail-closed from turning into a hang or a false positive:
+
+- Kimi retries a refused tool indefinitely. After the same tool is refused four times the job is stopped and reported as a policy deadlock, rather than spinning until a stall timer or the user notices.
+- The 50-character preview can cut a granted root mid-name. A candidate path that is a *prefix of* a granted root is truncation, not an escape, so the broker defers to the shell guard, which sees the untruncated command. Denying it instead removes the shell from the job entirely.
+
+`readOnlyRoots` grants read access outside the workspace; the guard denies writes to them. `allowInterpreters` opts a job into `pwsh`, `powershell`, `cmd` or `wsl` — a real loosening, since the guard cannot see inside those interpreters, and the reason it is off by default.
+
 ## What the design does not cover
 
 - Sandboxing. This is a deliberate product decision: the plugin installs and runs with one click on Windows, with no container, VM or WSL layer. Everything runs as the same user as Codex or Claude Code.

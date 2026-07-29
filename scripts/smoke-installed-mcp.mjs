@@ -33,7 +33,7 @@ const report = [];
 
 for (const spec of specs) {
   const transport = new StdioClientTransport({ command: spec.command, args: spec.args, cwd: spec.cwd, stderr: "pipe" });
-  const client = new Client({ name: "kimi-subagents-install-smoke", version: "0.3.0" });
+  const client = new Client({ name: "kimi-subagents-install-smoke", version: "0.3.1" });
   try {
     await client.connect(transport);
     const names = (await client.listTools()).tools.map((tool) => tool.name).sort();

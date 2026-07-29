@@ -55,6 +55,26 @@ const implementation = {
       while (!session.cancelled) await delay(25);
       return { stopReason: "cancelled" };
     }
+    if (process.env.FAKE_ACP_MODE === "deadlock") {
+      // Kimi retries a refused tool indefinitely; the runner must break the loop.
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        await client.requestPermission({
+          sessionId: params.sessionId,
+          toolCall: {
+            toolCallId: `tool-deadlock-${attempt}`,
+            title: "AskUserQuestion",
+            kind: "other",
+            content: [{ type: "content", content: { type: "text", text: "Requesting approval to Call AskUserQuestion" } }]
+          },
+          options: [
+            { optionId: "allow", name: "Allow", kind: "allow_once" },
+            { optionId: "reject", name: "Reject", kind: "reject_once" }
+          ]
+        });
+        await delay(20);
+      }
+      return { stopReason: "end_turn" };
+    }
     if (process.env.FAKE_ACP_MODE === "network") {
       // Kimi approves FetchURL itself: the client only ever sees the notification.
       await client.notify(acp.methods.client.session.update, {

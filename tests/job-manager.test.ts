@@ -74,7 +74,7 @@ describe("job manager", () => {
       taskSummary: "stale",
       allowDirty: false,
       allowCommit: false,
-      allowDelete: false, allowNetwork: false, allowSubagents: false, trackUsage: false, effort: "high", stallSeconds: 900,
+      allowDelete: false, allowNetwork: false, allowSubagents: false, readOnlyRoots: [], allowInterpreters: [], trackUsage: false, effort: "high", stallSeconds: 900,
       createdAt: now,
       updatedAt: now,
       retries: 0,

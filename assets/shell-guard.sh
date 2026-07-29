@@ -7,6 +7,8 @@
 : "${KIMI_GUARD_JOB_TYPE:=analyze}"
 : "${KIMI_GUARD_ALLOW_COMMIT:=0}"
 : "${KIMI_GUARD_ALLOW_DELETE:=0}"
+: "${KIMI_GUARD_ALLOW_INTERPRETERS:=}"
+if ! declare -p KIMI_GUARD_READ_ROOTS >/dev/null 2>&1; then KIMI_GUARD_READ_ROOTS=(); fi
 KIMI_GUARD_DEPTH=$(( ${KIMI_GUARD_DEPTH:-0} + 1 ))
 export KIMI_GUARD_DEPTH
 
@@ -48,6 +50,21 @@ kimi_guard_inside_roots() {
   return 1
 }
 
+# Read-only roots: readable, never writable. Granted per job via readOnlyRoots.
+kimi_guard_inside_read_roots() {
+  local candidate root
+  candidate="$(kimi_guard_normalize "$1")"
+  for root in "${KIMI_GUARD_READ_ROOTS[@]}"; do
+    [[ -n "$root" ]] || continue
+    [[ "$candidate" == "$root" || "$candidate" == "$root"/* ]] && return 0
+  done
+  return 1
+}
+
+kimi_guard_is_write_command() {
+  [[ "$1" =~ (\>|tee|cp[[:space:]]|mv[[:space:]]|touch[[:space:]]|mkdir[[:space:]]|ln[[:space:]]|install[[:space:]]|sed[[:space:]]+-i|rsync|robocopy|xcopy|out-file|set-content|add-content|new-item|remove-item) ]]
+}
+
 kimi_guard_is_absolute() {
   local value="${1//\\//}"
   value="${value#[\"\']}"
@@ -65,7 +82,7 @@ kimi_guard_check() {
 
   if [[ "$cmd" =~ ^cd[[:space:]]+([^[:space:]\;\&\|]+) ]]; then
     local target="${BASH_REMATCH[1]}"
-    if kimi_guard_is_absolute "$target" && ! kimi_guard_inside_roots "$target"; then
+    if kimi_guard_is_absolute "$target" && ! kimi_guard_inside_roots "$target" && ! kimi_guard_inside_read_roots "$target"; then
       kimi_guard_deny "directory change outside granted roots blocked" "$raw"
     fi
   fi
@@ -112,8 +129,14 @@ kimi_guard_check() {
   if [[ "$KIMI_GUARD_DEPTH" -le 1 ]] && [[ "$cmd" =~ git[[:space:]]+commit([[:space:]]|$) ]] && [[ "$KIMI_GUARD_ALLOW_COMMIT" != "1" ]]; then
     kimi_guard_deny "local commit was not explicitly delegated" "$raw"
   fi
-  if [[ "$cmd" =~ (^|[[:space:]\;\&\|\(])(powershell|powershell.exe|pwsh|pwsh.exe|cmd|cmd.exe|wsl|wsl.exe)([[:space:]]|$) ]]; then
-    kimi_guard_deny "alternate interpreter escapes the guard and is blocked" "$raw"
+  if [[ "$cmd" =~ (^|[[:space:]\;\&\|\(])(powershell|pwsh|cmd|wsl)(\.exe)?([[:space:]]|$) ]]; then
+    local interpreter="${BASH_REMATCH[2]}"
+    case " ${KIMI_GUARD_ALLOW_INTERPRETERS} " in
+      *" ${interpreter} "*)
+        kimi_guard_log allow interpreter-delegated "$raw" ;;
+      *)
+        kimi_guard_deny "alternate interpreter escapes the guard and is blocked: ${interpreter}" "$raw" ;;
+    esac
   fi
   if [[ "$cmd" =~ (\.ssh/|\.git-credentials|\.npmrc|\.aws/credentials|\.kimi-code/credentials|\.claude/\.credentials|\.codex/auth) ]]; then
     kimi_guard_deny "credential file access blocked" "$raw"
@@ -130,15 +153,22 @@ kimi_guard_check() {
     kimi_guard_deny "piping downloaded content into an interpreter blocked" "$raw"
   fi
 
-  local token
+  # Every absolute path in the command is checked, not just the first one.
+  local token out_of_root=0
   for token in $(printf '%s' "$raw" | grep -oE '([A-Za-z]:[\\/][^"'"'"'[:space:];|&]*|/[a-z]/[^"'"'"'[:space:];|&]*)' 2>/dev/null); do
     kimi_guard_inside_roots "$token" && continue
-    if [[ "$cmd" =~ (\>|tee|cp[[:space:]]|mv[[:space:]]|touch[[:space:]]|mkdir[[:space:]]|ln[[:space:]]|install[[:space:]]|sed[[:space:]]+-i|rsync|robocopy|xcopy) ]]; then
+    if kimi_guard_is_write_command "$cmd"; then
+      if kimi_guard_inside_read_roots "$token"; then
+        kimi_guard_deny "read-only root is not writable" "$raw"
+      fi
       kimi_guard_deny "write outside granted roots blocked" "$raw"
     fi
+    out_of_root=1
+  done
+  if [[ "$out_of_root" == "1" ]]; then
     kimi_guard_log allow out-of-root-read "$raw"
     return 0
-  done
+  fi
 
   kimi_guard_log allow default "$raw"
   return 0

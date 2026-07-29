@@ -15,7 +15,15 @@ let manager: JobManager;
 let workspace: string;
 let pulseInstalled = false;
 
-const pulseDb = path.join(os.homedir(), ".usage-pulse", "pulse.db");
+const pulseHome = path.join(os.homedir(), ".usage-pulse");
+
+// SQLite may land the write in the WAL sibling rather than the main file, so the
+// freshest timestamp across the store is what proves the hooks fired.
+async function pulseTouchedAt(): Promise<number> {
+  const names = ["pulse.db", "pulse.db-wal", "pulse.db-shm", "current-sessions.json"];
+  const stamps = await Promise.all(names.map((name) => stat(path.join(pulseHome, name)).then((info) => info.mtimeMs).catch(() => 0)));
+  return Math.max(...stamps);
+}
 
 async function waitForTerminal(id: string): Promise<JobRecord> {
   for (;;) {
@@ -44,7 +52,7 @@ afterAll(async () => {
 describe("usage pulse opt-in", () => {
   it("records a tracked job in the local Usage Pulse database", async () => {
     if (!pulseInstalled) return;
-    const before = await stat(pulseDb).then((info) => info.mtimeMs).catch(() => 0);
+    const before = await pulseTouchedAt();
     const started = await manager.start({
       jobType: "analyze",
       workspace,
@@ -54,7 +62,7 @@ describe("usage pulse opt-in", () => {
     const record = await waitForTerminal(started.id);
     expect(record.status).toBe("completed");
     expect(record.trackUsage).toBe(true);
-    const after = await stat(pulseDb).then((info) => info.mtimeMs).catch(() => 0);
+    const after = await pulseTouchedAt();
     expect(after).toBeGreaterThan(before);
   });
 

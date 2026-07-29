@@ -14,7 +14,7 @@ function record(id: string): JobRecord {
   const now = new Date().toISOString();
   return {
     id, ownerPid: process.pid, status: "running", jobType: "analyze", workspace: "C:\\fixture", additionalRoots: [],
-    taskSummary: "test", allowDirty: false, allowCommit: false, allowDelete: false, allowNetwork: false, allowSubagents: false, trackUsage: false, effort: "high", stallSeconds: 900, createdAt: now, updatedAt: now, retries: 0,
+    taskSummary: "test", allowDirty: false, allowCommit: false, allowDelete: false, allowNetwork: false, allowSubagents: false, readOnlyRoots: [], allowInterpreters: [], trackUsage: false, effort: "high", stallSeconds: 900, createdAt: now, updatedAt: now, retries: 0,
     blockedActions: [], shellCommands: [], toolViolations: [], changedFiles: [], recoveryAvailable: false, acceptedRisk: "allow-unless-blocked"
   };
 }

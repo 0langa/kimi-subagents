@@ -19,6 +19,8 @@ const record: JobRecord = {
   allowDelete: false,
   allowNetwork: false,
   allowSubagents: false,
+  readOnlyRoots: [],
+  allowInterpreters: [],
   trackUsage: false,
   effort: "high",
   stallSeconds: 900,

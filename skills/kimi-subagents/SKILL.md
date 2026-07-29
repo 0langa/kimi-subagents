@@ -36,6 +36,8 @@ Flags, each requiring an explicit user request for the underlying action:
 - `allowNetwork`: the task genuinely needs Kimi's own `FetchURL`/`WebSearch`. Without it, a network call cancels the job.
 - `allowSubagents`: the task genuinely needs nested Kimi agents. Without it, `Agent` and `AgentSwarm` fail instantly.
 - `trackUsage`: record the job in the separately installed Usage Pulse plugin.
+- `readOnlyRoots`: absolute paths the job must read but never write, for example a reference directory outside the workspace. Without this, any shell command touching them is denied.
+- `allowInterpreters`: `["pwsh"]` for PowerShell or .NET work. Without it the delegate can write scripts but never run them, so it ships untested code.
 
 In `auto`, do not delegate when the task is small enough that delegation overhead dominates, depends heavily on unstated conversation context, or could cause high-impact damage. Count every `kimi_start` against the three-job budget, including retries launched as new jobs.
 
@@ -58,6 +60,8 @@ Every shell command in a delegated job passes a shell guard that sees the full c
 When a job reports blocks, decide deliberately: either the block was correct, or the task needs a flag such as `allowDelete`, or the work belongs to the main agent. Never rewrite a task to disguise a blocked operation.
 
 The delegated runtime also turns off what Kimi would otherwise approve for itself: nested agents and cron fail instantly, web search has no credentials, telemetry and auto-update are off. `FetchURL` cannot be removed from Kimi, so the runtime forbids it in its own `AGENTS.md` and cancels any job that calls it without `allowNetwork`. A cancelled call may still have left the machine: never put secrets in task text.
+
+Plan jobs deliver their plan through `ExitPlanMode`, which is permitted. If a job stops with `Job stopped after a policy deadlock`, Kimi kept retrying a refused tool: read `blockedActions`, grant the missing capability if it is legitimate, and restart with `kimi_followup`.
 
 Kimi reports no token usage over ACP, so `kimi_result` has no cost figures. If the user wants local usage numbers, pass `trackUsage: true` and read them with the Usage Pulse plugin.
 

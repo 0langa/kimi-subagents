@@ -34,7 +34,7 @@ const transport = new StdioClientTransport({
   cwd: pluginRoot,
   stderr: "pipe"
 });
-const client = new Client({ name: "kimi-subagents-runtime-verify", version: "0.3.0" });
+const client = new Client({ name: "kimi-subagents-runtime-verify", version: "0.3.1" });
 const unwrap = (response) => response.structuredContent?.result ?? JSON.parse(response.content?.[0]?.text ?? "{}").result;
 
 try {

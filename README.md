@@ -4,7 +4,7 @@ Windows-first Codex and Claude Code plugin that delegates suitable work to insta
 
 ## Status
 
-v0.1.1 development build. Production `0langas-plugins` marketplace is intentionally untouched. Distribution uses local `kimi-subagents-dev` catalog pinned to exact pushed Git SHA.
+v0.3.1 development build. Production `0langas-plugins` marketplace is intentionally untouched. Distribution uses local `kimi-subagents-dev` catalog pinned to exact pushed Git SHA.
 
 ## Requirements
 
@@ -47,7 +47,7 @@ Codex can invoke `$kimi-subagents`. Claude Code exposes `/kimi-subagents:kimi-su
 - `kimi_result`: redacted result, usage, retries, changed files, capped unified diff, blocks, full shell command log, recovery
 - `kimi_restore`: selected checkpoint paths after exact explicit confirmation
 
-`kimi_start` gates risky operations behind explicit flags: `allowCommit` (local commit), `allowDelete` (file deletion inside granted roots), `allowDirty` (start from a dirty tree), `allowNetwork` (Kimi's own `FetchURL`/`WebSearch`), `allowSubagents` (nested Kimi agents), `trackUsage` (record the job in the separately installed Usage Pulse plugin), `maxSteps` (loop ceiling).
+`kimi_start` gates risky operations behind explicit flags: `allowCommit` (local commit), `allowDelete` (file deletion inside granted roots), `allowDirty` (start from a dirty tree), `allowNetwork` (Kimi's own `FetchURL`/`WebSearch`), `allowSubagents` (nested Kimi agents), `readOnlyRoots` (paths the job may read but never write), `allowInterpreters` (`pwsh`/`powershell`/`cmd`/`wsl`, needed for PowerShell and .NET work), `trackUsage` (record the job in the separately installed Usage Pulse plugin), `maxSteps` (loop ceiling).
 
 Kimi's ACP responses carry no token usage in 0.29.2, so the plugin reports none. `trackUsage: true` — or `KIMI_SUBAGENTS_USAGE_PULSE=1` for every job — re-adds Usage Pulse's own hooks to the delegated session and points them at your real `~/.usage-pulse` store.
 

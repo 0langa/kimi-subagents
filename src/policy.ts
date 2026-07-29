@@ -12,6 +12,8 @@ export interface PolicyInput {
   kind?: ToolKind | null;
   content: unknown;
   roots: string[];
+  readOnlyRoots: string[];
+  allowInterpreters: string[];
   workspace: string;
   allowCommit: boolean;
   allowDelete: boolean;
@@ -30,6 +32,11 @@ const APPROVAL_PREFIX = "Requesting approval to ";
 const READ_ONLY_TOOLS = new Set(["Read", "Grep", "Glob", "ReadMediaFile", "TodoList", "SetTodoList", "TaskList", "TaskOutput", "CronList", "WebSearch", "FetchURL"]);
 const EDIT_TOOLS = new Set(["Write", "Edit", "MultiEdit", "NotebookEdit", "StrReplaceFile", "WriteFile", "apply_patch"]);
 const SHELL_TOOLS = new Set(["Bash", "BashOutput", "Shell", "Terminal"]);
+// Turn control: these end or shape Kimi's own turn and touch nothing. Refusing
+// ExitPlanMode makes a plan job unable to deliver its plan, so Kimi retries it
+// forever.
+const TURN_CONTROL_TOOLS = new Set(["ExitPlanMode", "EnterPlanMode", "TodoWrite"]);
+const INTERACTIVE_TOOLS = new Set(["AskUserQuestion", "AskUser", "RequestUserInput"]);
 
 const DELETE_PATTERNS = [
   /(?:^|[;&|\s(])(?:rm|rmdir|shred|unlink|del|erase|remove-item)(?:\s|$)/i
@@ -61,7 +68,6 @@ const CREDENTIAL_PATTERNS = [
   /(?:^|[;&|\s(])(?:printenv|env)(?:\s|$)/i,
   /\$\{?[A-Za-z_]*(?:TOKEN|SECRET|PASSWORD|CREDENTIAL|API_?KEY)/i
 ];
-const INTERPRETER_ESCAPE_PATTERN = /(?:^|[;&|\s(])(?:powershell(?:\.exe)?|pwsh(?:\.exe)?|cmd(?:\.exe)?|wsl(?:\.exe)?)(?:\s|$)/i;
 const COMMIT_PATTERN = /\bgit\s+commit(?:\s|$)/i;
 
 function contentEntries(content: unknown): Array<Record<string, unknown>> {
@@ -110,6 +116,25 @@ function insideRoots(roots: string[], candidate: string): boolean {
   });
 }
 
+/**
+ * Kimi truncates the command preview at 50 characters, which can cut a granted
+ * root mid-name ("...\devstorage-gua" for "...\devstorage-guard"). Such a
+ * fragment is a prefix of the root, never a path outside it, so the broker
+ * defers to the shell guard, which sees the untruncated command.
+ */
+function truncatedRootPrefix(roots: string[], candidate: string): boolean {
+  const resolved = path.resolve(candidate).toLowerCase();
+  return roots.some((root) => path.resolve(root).toLowerCase().startsWith(resolved));
+}
+
+function interpreterDecision(command: string, allowed: string[]): PolicyDecision | undefined {
+  const match = /(?:^|[;&|\s(])(powershell|pwsh|cmd|wsl)(?:\.exe)?(?:\s|$)/i.exec(command);
+  if (!match) return undefined;
+  const interpreter = match[1]!.toLowerCase();
+  if (allowed.map((entry) => entry.trim().toLowerCase()).includes(interpreter)) return undefined;
+  return { allow: false, reason: `Alternate interpreter escapes the shell guard: ${interpreter}`, rule: "interpreter-escape" };
+}
+
 function absoluteCandidates(command: string): string[] {
   const matches = [
     ...command.matchAll(/["']([A-Za-z]:[\\/][^"']+)["']/g),
@@ -120,9 +145,8 @@ function absoluteCandidates(command: string): string[] {
 }
 
 function commandDecision(input: PolicyInput, command: string): PolicyDecision {
-  if (INTERPRETER_ESCAPE_PATTERN.test(command)) {
-    return { allow: false, reason: "Alternate interpreter escapes the shell guard", rule: "interpreter-escape" };
-  }
+  const interpreter = interpreterDecision(command, input.allowInterpreters);
+  if (interpreter) return interpreter;
   if (REMOTE_MUTATION_PATTERNS.some((pattern) => pattern.test(command))) {
     return { allow: false, reason: "Remote Git, GitHub or package publication is main-agent-only", rule: "remote-mutation" };
   }
@@ -142,9 +166,11 @@ function commandDecision(input: PolicyInput, command: string): PolicyDecision {
     return { allow: false, reason: "Local commit was not explicitly delegated", rule: "commit" };
   }
   for (const candidate of absoluteCandidates(command)) {
-    if (!insideRoots(input.roots, candidate)) {
-      return { allow: false, reason: `Path outside granted roots referenced by shell command: ${candidate}`, rule: "workspace-escape" };
-    }
+    if (insideRoots(input.roots, candidate)) continue;
+    // Read-only roots are readable here; the shell guard denies writes to them.
+    if (insideRoots(input.readOnlyRoots, candidate)) continue;
+    if (truncatedRootPrefix(input.roots, candidate)) continue;
+    return { allow: false, reason: `Path outside granted roots referenced by shell command: ${candidate}`, rule: "workspace-escape" };
   }
   return { allow: true, reason: "Shell command permitted; full text is enforced by the shell guard", rule: "shell-allow" };
 }
@@ -162,6 +188,11 @@ function pathDecision(input: PolicyInput, candidates: string[]): PolicyDecision 
   return { allow: true, reason: "File mutation inside granted roots", rule: "edit-allow" };
 }
 
+function readDecision(input: PolicyInput, candidates: string[]): PolicyDecision {
+  const roots = [...input.roots, ...input.readOnlyRoots];
+  return pathDecision({ ...input, roots }, candidates);
+}
+
 export function decidePermission(input: PolicyInput): PolicyDecision {
   const extracted = extractAction(input.content);
   const toolName = input.toolName.trim();
@@ -172,6 +203,12 @@ export function decidePermission(input: PolicyInput): PolicyDecision {
   if (/^Deleting cron/i.test(extracted.action ?? "")) {
     return { allow: false, reason: "Scheduled task mutation is main-agent-only", rule: "cron-blocked" };
   }
+  if (TURN_CONTROL_TOOLS.has(toolName)) {
+    return { allow: true, reason: "Turn control changes nothing outside the session", rule: "turn-control" };
+  }
+  if (INTERACTIVE_TOOLS.has(toolName)) {
+    return { allow: false, reason: "A delegated job has no interactive user; answer from the evidence you have", rule: "no-interactive-user" };
+  }
 
   const shell = SHELL_TOOLS.has(toolName) || input.kind === "execute" || Boolean(extracted.command);
   const edit = EDIT_TOOLS.has(toolName) || (!shell && ["edit", "move", "delete"].includes(input.kind ?? ""));
@@ -180,7 +217,7 @@ export function decidePermission(input: PolicyInput): PolicyDecision {
     if (shell) return { allow: false, reason: `${input.jobType} job: command execution is denied`, rule: "read-only-job" };
     if (edit) return { allow: false, reason: `${input.jobType} job: file mutation is denied`, rule: "read-only-job" };
     if (READ_ONLY_TOOLS.has(toolName)) {
-      return pathDecision({ ...input }, extracted.targetPath ? [extracted.targetPath] : [input.workspace]);
+      return readDecision(input, extracted.targetPath ? [extracted.targetPath] : [input.workspace]);
     }
     return { allow: false, reason: `${input.jobType} job: unrecognised tool "${toolName}" is refused`, rule: "fail-closed" };
   }
@@ -196,7 +233,7 @@ export function decidePermission(input: PolicyInput): PolicyDecision {
     return pathDecision(input, candidates);
   }
   if (READ_ONLY_TOOLS.has(toolName)) {
-    return pathDecision(input, extracted.targetPath ? [extracted.targetPath] : [input.workspace]);
+    return readDecision(input, extracted.targetPath ? [extracted.targetPath] : [input.workspace]);
   }
   if (!extracted.action) {
     return { allow: false, reason: `Tool "${toolName}" requested approval without a readable action description`, rule: "fail-closed" };

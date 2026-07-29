@@ -24,6 +24,8 @@ export interface StartJobInput {
   allowDelete?: boolean;
   allowNetwork?: boolean;
   allowSubagents?: boolean;
+  readOnlyRoots?: string[];
+  allowInterpreters?: string[];
   trackUsage?: boolean;
   maxSteps?: number;
   timeoutSeconds?: number;
@@ -77,6 +79,8 @@ export interface JobRecord {
   allowDelete: boolean;
   allowNetwork: boolean;
   allowSubagents: boolean;
+  readOnlyRoots: string[];
+  allowInterpreters: string[];
   trackUsage: boolean;
   model?: string;
   effort: JobEffort;
@@ -123,6 +127,7 @@ export interface RunResult {
   blockedActions: BlockedAction[];
   shellCommands: ShellCommandRecord[];
   toolViolations: ToolViolation[];
+  deadlock?: string;
   diagnostics?: string;
   capabilities: unknown;
 }

@@ -116,6 +116,8 @@ export class JobManager {
       allowDelete: Boolean(input.allowDelete),
       allowNetwork: Boolean(input.allowNetwork),
       allowSubagents: Boolean(input.allowSubagents),
+      readOnlyRoots: input.readOnlyRoots ?? [],
+      allowInterpreters: input.allowInterpreters ?? [],
       trackUsage: Boolean(input.trackUsage ?? process.env.KIMI_SUBAGENTS_USAGE_PULSE === "1"),
       model: input.model,
       effort: input.effort ?? DEFAULT_EFFORT[input.jobType],
@@ -160,6 +162,11 @@ export class JobManager {
       allowDirty: overrides.allowDirty ?? true,
       allowCommit: overrides.allowCommit ?? parent.allowCommit,
       allowDelete: overrides.allowDelete ?? parent.allowDelete,
+      allowNetwork: overrides.allowNetwork ?? parent.allowNetwork,
+      allowSubagents: overrides.allowSubagents ?? parent.allowSubagents,
+      readOnlyRoots: overrides.readOnlyRoots ?? parent.readOnlyRoots,
+      allowInterpreters: overrides.allowInterpreters ?? parent.allowInterpreters,
+      trackUsage: overrides.trackUsage ?? parent.trackUsage,
       model: overrides.model ?? parent.model,
       effort: overrides.effort ?? parent.effort,
       timeoutSeconds: overrides.timeoutSeconds ?? parent.timeoutSeconds,
@@ -275,8 +282,9 @@ export class JobManager {
       const cancelled = latest?.status === "cancelled" || result.stopReason === "cancelled";
       const emptyResult = !cancelled && !result.finalMessage.trim();
       const forbiddenTool = result.toolViolations.find((violation) => violation.cancelled);
+      const deadlock = result.deadlock;
       await this.update(jobId, {
-        status: lastProgress.stalled || forbiddenTool ? "failed" : cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
+        status: lastProgress.stalled || forbiddenTool || deadlock ? "failed" : cancelled ? "cancelled" : readOnlyViolation || emptyResult ? "failed" : "completed",
         stopReason: result.stopReason,
         finalMessage: result.finalMessage,
         diagnostics: result.diagnostics,
@@ -289,7 +297,9 @@ export class JobManager {
         diffSummary: readOnlyViolation ? `READ-ONLY VIOLATION: ${diff.summary}` : diff.summary,
         diffPatch: input.jobType === "execute" ? patchOf(await workspacePatch(input.workspace, baselineCommit)) : undefined,
         resultingCommit: diff.head,
-        error: forbiddenTool
+        error: deadlock
+          ? `Job stopped after a policy deadlock: ${deadlock}`
+          : forbiddenTool
           ? `Job stopped by runtime policy: ${forbiddenTool.reason}`
           : lastProgress.stalled
             ? `Job cancelled after ${stallSeconds}s without Kimi activity.`

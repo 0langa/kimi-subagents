@@ -16,6 +16,8 @@ function decide(name: keyof typeof payloads, overrides: Partial<PolicyInput> = {
     kind: undefined,
     content: payload.content,
     roots: [workspace],
+    readOnlyRoots: [],
+    allowInterpreters: [],
     workspace,
     allowCommit: false,
     allowDelete: false,
@@ -30,6 +32,8 @@ function bash(command: string, overrides: Partial<PolicyInput> = {}) {
     kind: "execute",
     content: [{ type: "content", content: { type: "text", text: `Requesting approval to Running: ${command}` } }],
     roots: [workspace],
+    readOnlyRoots: [],
+    allowInterpreters: [],
     workspace,
     allowCommit: false,
     allowDelete: false,
@@ -113,7 +117,7 @@ describe("execute job decisions", () => {
     expect(decide("unknownShape")).toMatchObject({ allow: false, rule: "fail-closed" });
     expect(decidePermission({
       jobType: "execute", toolName: "Bash", kind: "execute", content: [], roots: [workspace], workspace,
-      allowCommit: false, allowDelete: false
+      readOnlyRoots: [], allowInterpreters: [], allowCommit: false, allowDelete: false
     })).toMatchObject({ allow: false, rule: "fail-closed" });
   });
 
@@ -158,5 +162,44 @@ describe("permission option selection", () => {
 
   it("cancels when no usable option exists", () => {
     expect(selectPermission({ ...request, options: [] }, true)).toEqual({ outcome: "cancelled" });
+  });
+});
+
+describe("turn control and interactive tools", () => {
+  it("allows a plan job to deliver its plan", () => {
+    for (const jobType of ["plan", "analyze", "execute"] as const) {
+      expect(decidePermission({
+        jobType, toolName: "ExitPlanMode", kind: "other", content: [], roots: [workspace],
+        readOnlyRoots: [], allowInterpreters: [], workspace, allowCommit: false, allowDelete: false
+      }), jobType).toMatchObject({ allow: true, rule: "turn-control" });
+    }
+  });
+
+  it("refuses interactive questions with a distinct rule", () => {
+    expect(decidePermission({
+      jobType: "plan", toolName: "AskUserQuestion", kind: "other", content: [], roots: [workspace],
+      readOnlyRoots: [], allowInterpreters: [], workspace, allowCommit: false, allowDelete: false
+    })).toMatchObject({ allow: false, rule: "no-interactive-user" });
+  });
+});
+
+describe("truncated roots, read roots and interpreters", () => {
+  it("treats a truncated granted root as inside the root", () => {
+    const cut = workspace.slice(0, workspace.length - 4);
+    expect(bash(`cd ${cut}`)).toMatchObject({ allow: true });
+  });
+
+  it("still refuses a genuine path outside the roots", () => {
+    expect(bash("cat C:/Windows/System32/drivers/etc/hosts")).toMatchObject({ allow: false, rule: "workspace-escape" });
+  });
+
+  it("permits paths inside a read-only root", () => {
+    expect(bash("cat F:/reference/notes.md", { readOnlyRoots: [path.resolve("F:/reference")] })).toMatchObject({ allow: true });
+  });
+
+  it("blocks interpreters by default and permits delegated ones", () => {
+    expect(bash("pwsh -File ./run.ps1")).toMatchObject({ allow: false, rule: "interpreter-escape" });
+    expect(bash("pwsh -File ./run.ps1", { allowInterpreters: ["pwsh"] })).toMatchObject({ allow: true });
+    expect(bash("wsl ls", { allowInterpreters: ["pwsh"] })).toMatchObject({ allow: false, rule: "interpreter-escape" });
   });
 });

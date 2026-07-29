@@ -196,3 +196,42 @@ describe("live Kimi runtime", () => {
     expect(message).toMatch(/check-kimi-code-docs|write-goal|update-config/i);
   });
 });
+
+describe("live 0.3.1 regressions", () => {
+  it("lets a plan job deliver its plan instead of deadlocking", async () => {
+    const started = await manager.start({
+      jobType: "plan",
+      workspace,
+      task: "Produce a three-bullet plan for adding a CONTRIBUTING.md to this repository. Do not change files."
+    });
+    const record = await waitForTerminal(started.id);
+    expect(record.status).toBe("completed");
+    expect(record.error ?? "").not.toMatch(/deadlock/);
+    expect(record.finalMessage ?? "").not.toBe("");
+    expect(record.blockedActions.filter((action) => /ExitPlanMode/.test(action.title))).toEqual([]);
+    expect(record.changedFiles).toEqual([]);
+  }, 600_000);
+
+  it("runs a delegated interpreter and reads a read-only root", async () => {
+    const reference = await mkdtemp(path.join(os.tmpdir(), "kimi-live-ref-"));
+    await writeFile(path.join(reference, "reference.txt"), "marker-9931\n");
+    const started = await manager.start({
+      jobType: "execute",
+      workspace,
+      allowDirty: true,
+      readOnlyRoots: [reference],
+      allowInterpreters: ["pwsh"],
+      task: [
+        `Read the file ${path.join(reference, "reference.txt")} with the Bash tool and report its contents.`,
+        "Then run this exact command and report its output: pwsh -NoProfile -Command \"Write-Output interpreter-ok\"",
+        "Report the literal result of each step."
+      ].join("\n")
+    });
+    const record = await waitForTerminal(started.id);
+    expect(record.status).toBe("completed");
+    expect(record.finalMessage ?? "").toMatch(/marker-9931/);
+    expect(record.finalMessage ?? "").toMatch(/interpreter-ok/);
+    expect(record.shellCommands.filter((event) => event.decision === "deny")).toEqual([]);
+    await rm(reference, { recursive: true, force: true });
+  }, 900_000);
+});
