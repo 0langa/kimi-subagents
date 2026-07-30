@@ -61,8 +61,21 @@ kimi_guard_inside_read_roots() {
   return 1
 }
 
+# Discards redirections that write nowhere real, so that a read such as
+# `ls "/c/Program Files/..."/* 2> /dev/null` is not mistaken for a write.
+kimi_guard_strip_null_redirects() {
+  local value="$1"
+  value="${value//2>&1/ }"
+  while [[ "$value" =~ ([0-9]*\&?\>\>?[[:space:]]*/dev/null) ]]; do
+    value="${value/${BASH_REMATCH[1]}/ }"
+  done
+  printf '%s' "$value"
+}
+
 kimi_guard_is_write_command() {
-  [[ "$1" =~ (\>|tee|cp[[:space:]]|mv[[:space:]]|touch[[:space:]]|mkdir[[:space:]]|ln[[:space:]]|install[[:space:]]|sed[[:space:]]+-i|rsync|robocopy|xcopy|out-file|set-content|add-content|new-item|remove-item) ]]
+  local probe
+  probe="$(kimi_guard_strip_null_redirects "$1")"
+  [[ "$probe" =~ (\>|tee|cp[[:space:]]|mv[[:space:]]|touch[[:space:]]|mkdir[[:space:]]|ln[[:space:]]|install[[:space:]]|sed[[:space:]]+-i|rsync|robocopy|xcopy|out-file|set-content|add-content|new-item|remove-item) ]]
 }
 
 kimi_guard_is_absolute() {
@@ -75,6 +88,7 @@ kimi_guard_is_absolute() {
 kimi_guard_check() {
   local raw="$1"
   local cmd="${raw,,}"
+  local allow_rule="default"
 
   case "$raw" in
     kimi_guard_*|'set -o functrace'|'trap kimi_guard_hook DEBUG'|'shopt -s expand_aliases') return 0 ;;
@@ -133,7 +147,7 @@ kimi_guard_check() {
     local interpreter="${BASH_REMATCH[2]}"
     case " ${KIMI_GUARD_ALLOW_INTERPRETERS} " in
       *" ${interpreter} "*)
-        kimi_guard_log allow interpreter-delegated "$raw" ;;
+        allow_rule="interpreter-delegated" ;;
       *)
         kimi_guard_deny "alternate interpreter escapes the guard and is blocked: ${interpreter}" "$raw" ;;
     esac
@@ -166,11 +180,12 @@ kimi_guard_check() {
     out_of_root=1
   done
   if [[ "$out_of_root" == "1" ]]; then
-    kimi_guard_log allow out-of-root-read "$raw"
+    [[ "$allow_rule" == "default" ]] && allow_rule="out-of-root-read"
+    kimi_guard_log allow "$allow_rule" "$raw"
     return 0
   fi
 
-  kimi_guard_log allow default "$raw"
+  kimi_guard_log allow "$allow_rule" "$raw"
   return 0
 }
 

@@ -4,7 +4,7 @@ Windows-first Codex and Claude Code plugin that delegates suitable work to insta
 
 ## Status
 
-v0.3.1 development build. Production `0langas-plugins` marketplace is intentionally untouched. Distribution uses local `kimi-subagents-dev` catalog pinned to exact pushed Git SHA.
+v0.3.2 development build. Production `0langas-plugins` marketplace is intentionally untouched. Distribution uses local `kimi-subagents-dev` catalog pinned to exact pushed Git SHA.
 
 ## Requirements
 

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.2
+
+Two guard defects found by re-running the 0.3.1 verification jobs. Both fixes
+confirmed against the real guard log.
+
+### Fixed
+
+- **A read with a discarded redirect was denied as a write.** `ls -d "/c/Program Files/PowerShell/Modules"/* 2> /dev/null` was blocked as `write outside granted roots` because the write test matched the bare `>` in `2> /dev/null`. Redirections to `/dev/null` and `2>&1` are now stripped before the write test, so out-of-root reads keep working while real writes are still denied.
+- **Delegated interpreter commands were logged twice**, inflating the command count. Each inspected command now produces exactly one log line, tagged `interpreter-delegated` when the job granted that interpreter.
+
+
 ## 0.3.1
 
 Fixes found by the first real delegated runs on Claude Code and Codex. Both runs

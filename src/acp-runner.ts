@@ -158,7 +158,7 @@ export class AcpRunner {
     const client: Client = { requestPermission: () => ({ outcome: { outcome: "cancelled" } }), sessionUpdate: () => undefined };
     const connection = new ClientSideConnection(() => client, childStream(child));
     try {
-      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.3.1" } });
+      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.3.2" } });
       const session = await connection.newSession({ cwd: workspace, mcpServers: [] });
       result.kimi.authenticated = true;
       result.acp = { protocolVersion: initialized.protocolVersion, sessionCreated: Boolean(session.sessionId), capabilities: initialized.agentCapabilities };
@@ -272,7 +272,7 @@ export class AcpRunner {
       const initialized: InitializeResponse = await connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { plan: {} },
-        clientInfo: { name: "kimi-subagents", version: "0.3.1" }
+        clientInfo: { name: "kimi-subagents", version: "0.3.2" }
       });
       const session = await connection.newSession({ cwd: input.workspace, additionalDirectories: input.additionalRoots ?? [], mcpServers: [] });
       sessionId = session.sessionId;

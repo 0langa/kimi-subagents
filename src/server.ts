@@ -7,7 +7,7 @@ import { JobManager } from "./job-manager.js";
 import { safeError } from "./redaction.js";
 import type { JobRecord, StartJobInput } from "./types.js";
 
-export const SERVER_VERSION = "0.3.1";
+export const SERVER_VERSION = "0.3.2";
 
 function result(value: unknown) {
   const structuredContent = { result: value };

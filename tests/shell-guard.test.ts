@@ -250,3 +250,49 @@ describe("read-only roots and delegated interpreters", () => {
     expect(result.stderr).toMatch(/alternate interpreter/);
   });
 });
+
+describe("redirect handling and log rules", () => {
+  let redirBase: string;
+  let redirWorkspace: string;
+  let redirGuard: PreparedGuard;
+
+  beforeAll(async () => {
+    bash = await locateBash();
+    redirBase = await mkdtemp(path.join(os.tmpdir(), "kimi-guard-redir-"));
+    redirWorkspace = path.join(redirBase, "workspace");
+    await mkdir(redirWorkspace, { recursive: true });
+    redirGuard = await new ShellGuard(path.join(redirBase, "guards")).prepare({
+      jobId: "55555555-5555-4555-8555-555555555555",
+      jobType: "execute",
+      roots: [redirWorkspace],
+      readOnlyRoots: [],
+      allowInterpreters: ["pwsh"],
+      allowCommit: false,
+      allowDelete: false
+    });
+  }, 60_000);
+
+  afterAll(async () => {
+    await rm(redirBase, { recursive: true, force: true });
+  });
+
+  it("treats an out-of-root read with a discarded redirect as a read", async () => {
+    const result = await runWith(redirGuard, 'ls -d "/c/Program Files"/* 2> /dev/null || true', redirWorkspace);
+    expect(result.code).not.toBe(126);
+    const events = await redirGuard.read();
+    expect(events.some((event) => event.decision === "deny" && /Program Files/.test(event.command))).toBe(false);
+  });
+
+  it("still denies a real write outside the roots", async () => {
+    const result = await runWith(redirGuard, 'echo x > /c/Windows/kimi-guard-probe.txt', redirWorkspace);
+    expect(result.code).toBe(126);
+    expect(result.stderr).toMatch(/write outside granted roots/);
+  });
+
+  it("logs one line per command, tagged with the interpreter grant", async () => {
+    await runWith(redirGuard, "pwsh -NoProfile -Command exit 0", redirWorkspace);
+    const events = (await redirGuard.read()).filter((event) => /pwsh -NoProfile -Command exit 0/.test(event.command));
+    expect(events).toHaveLength(1);
+    expect(events[0]).toMatchObject({ decision: "allow", rule: "interpreter-delegated" });
+  });
+});

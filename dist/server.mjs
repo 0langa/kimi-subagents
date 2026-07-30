@@ -35595,7 +35595,7 @@ var AcpRunner = class {
     const client2 = { requestPermission: () => ({ outcome: { outcome: "cancelled" } }), sessionUpdate: () => void 0 };
     const connection = new ClientSideConnection(() => client2, childStream(child));
     try {
-      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.3.1" } });
+      const initialized = await connection.initialize({ protocolVersion: PROTOCOL_VERSION, clientCapabilities: {}, clientInfo: { name: "kimi-subagents", version: "0.3.2" } });
       const session = await connection.newSession({ cwd: workspace, mcpServers: [] });
       result2.kimi.authenticated = true;
       result2.acp = { protocolVersion: initialized.protocolVersion, sessionCreated: Boolean(session.sessionId), capabilities: initialized.agentCapabilities };
@@ -35709,7 +35709,7 @@ var AcpRunner = class {
       const initialized = await connection.initialize({
         protocolVersion: PROTOCOL_VERSION,
         clientCapabilities: { plan: {} },
-        clientInfo: { name: "kimi-subagents", version: "0.3.1" }
+        clientInfo: { name: "kimi-subagents", version: "0.3.2" }
       });
       const session = await connection.newSession({ cwd: input.workspace, additionalDirectories: input.additionalRoots ?? [], mcpServers: [] });
       sessionId = session.sessionId;
@@ -36797,7 +36797,7 @@ ${task}`
 };
 
 // src/server.ts
-var SERVER_VERSION = "0.3.1";
+var SERVER_VERSION = "0.3.2";
 function result(value) {
   const structuredContent = { result: value };
   return { content: [{ type: "text", text: JSON.stringify(structuredContent, null, 2) }], structuredContent };
